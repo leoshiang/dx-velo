@@ -3,12 +3,12 @@
 setlocal enabledelayedexpansion
 
 echo ================================
-echo     Velo 發布工具 v1.0.2
+echo     Velo 發布工具 v1.0.0
 echo ================================
 
 :: 設定變數
 set "PROJECT_NAME=velo"
-set "VERSION=1.0.2"
+set "VERSION=1.0.4"
 set "TEMP_DIR=temp_build"
 
 :: 產生日期字串 (YYYYMMDD)
@@ -96,8 +96,8 @@ for /l %%i in (0,1,5) do (
         set "exe_name=%PROJECT_NAME%"
     )
     
-    :: 複製 Templates 目錄
-    xcopy /E /I /Q "Templates" "!release_dir!\Templates\" >nul
+    :: 複製 templates 目錄
+    xcopy /E /I /Q "templates" "!release_dir!\templates\" >nul
     
     :: 建立範例設定檔
     copy "velo.config.json" "!release_dir!\velo.config.json.example" >nul
@@ -192,15 +192,14 @@ echo ```json
 echo {
 echo   "PostsPath": "Posts",
 echo   "OutputPath": "Output",
-echo   "TemplatesPath": "Templates",
-echo   "SiteTitle": "我的部落格"
+echo   "TemplatePath": "templates"
 echo }
 echo ```
 echo.
 echo ## 自定義模板
 echo.
-echo - 修改 `Templates/index.html` 自定義首頁
-echo - 修改 `Templates/post.html` 自定義文章頁面
+echo - 修改 `templates/index.html` 自定義首頁
+echo - 修改 `templates/post.html` 自定義文章頁面
 echo.
 echo ## 文章格式
 echo.
@@ -249,7 +248,7 @@ echo ## 檔案說明
 echo.
 echo 每個 ZIP 包含：
 echo - 單一執行檔 ^(無需額外依賴^)
-echo - Templates 目錄 ^(模板檔案^)
+echo - templates 目錄 ^(模板檔案^)
 echo - 範例設定檔
 echo - README 使用說明
 echo.

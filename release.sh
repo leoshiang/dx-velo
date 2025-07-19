@@ -151,8 +151,7 @@ EOF
 {
   "PostsPath": "Posts",
   "OutputPath": "Output",
-  "TemplatesPath": "Templates",
-  "SiteTitle": "我的部落格"
+  "TemplatePath": "Templates"
 }
 \`\`\`
 
