@@ -185,6 +185,7 @@
         .article-content table,
         .article-content iframe,
         .article-content video {
+            line-height: 1.15;
             font-family: Consolas, Geneva, sans-serif;
             max-width: 100%;
             overflow-x: auto;
@@ -192,6 +193,7 @@
 
         /* 程式碼區塊特殊處理 */
         .article-content pre {
+            line-height: 1.15;
             white-space: pre-wrap; /* 保持格式但允許換行 */
             word-wrap: break-word;
             overflow-x: auto;
@@ -279,6 +281,21 @@
             transform: translateY(20px);
         }
 
+        /* 亦可作用於 post.html 的 .post-content 區域 */
+        blockquote {
+            margin: 1rem 0;
+            padding: .75rem 1rem;
+            background: #ffecec; /* 淺紅底色 */
+            border-left: 6px solid #b71c1c; /* 深紅窄條 */
+            border-radius: 4px;
+            color: #555;
+        }
+
+        /* 內部文字加強可讀性（可選） */
+        blockquote p {
+            margin: 0;
+        }
+
         /* <= 768px：改用單欄排版，文章區域可佔滿寬度 */
         @media (max-width: 768px) {
             .container {
@@ -300,10 +317,6 @@
     </style>
     <!-- Mermaid.js 圖表支援 -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script>
-        /* Mermaid 於頁面載入後自動初始化 */
-        mermaid.initialize({startOnLoad: true});
-    </script>
 
     <!-- MathJax 數學公式支援 -->
     <script id="MathJax-script"
@@ -380,6 +393,9 @@
 </div>
 
 <script>
+    /* Mermaid 於頁面載入後自動初始化 */
+    mermaid.initialize({startOnLoad: true});
+
     document.addEventListener('DOMContentLoaded', () => {
         /* 語法高亮 */
         hljs.highlightAll();
