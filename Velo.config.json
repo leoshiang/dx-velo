@@ -1,0 +1,18 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "System": "Warning"
+    }
+  },
+  "BlogContentPath": "E:\\Dropbox\\部落格",
+  "BlogSettings": {
+    "HtmlOutputPath": "E:\\Dropbox\\部落格輸出",
+    "TemplatePath": ".\\Templates",
+    "ImageOutputPath": "E:\\Dropbox\\部落格輸出\\images",
+    "ClearOutputDirectoryOnStart": true,
+    "AutoAddYamlHeader": true,
+    "AutoSaveModified": true
+  }
+}

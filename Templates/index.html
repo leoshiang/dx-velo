@@ -1,0 +1,864 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>LEOSHIANG 的部落格</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr auto; /* 改為 auto，讓側邊欄自動調整寬度 */
+            gap: 40px;
+        }
+
+        .sidebar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px); /* 限制最大高度 */
+            display: flex;
+            flex-direction: column;
+            min-width: 280px;        /* 設定最小寬度 */
+            max-width: 450px;        /* 設定最大寬度 */
+            width: max-content;      /* 根據內容調整寬度 */
+        }
+
+        .main-content {
+            min-width: 0; /* 允許收縮 */
+        }
+
+        /* 搜尋區域樣式 */
+        .search-section {
+            margin-bottom: 30px;
+            flex-shrink: 0; /* 防止搜尋區域被壓縮 */
+        }
+
+        .search-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2rem;
+            border-bottom: 2px solid #28a745;
+            padding-bottom: 8px;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            min-width: 200px;       /* 設定最小寬度 */
+            padding: 10px 40px 10px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #28a745;
+        }
+
+        .search-input::placeholder {
+            color: #6c757d;
+        }
+
+        .search-button {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px;
+            transition: color 0.3s ease;
+        }
+
+        .search-button:hover {
+            color: #28a745;
+        }
+
+        .search-results {
+            font-size: 0.8rem;
+            color: #6c757d;
+            display: none;
+            margin-bottom: 10px;
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .clear-search {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: none;
+        }
+
+        .clear-search:hover {
+            background: #c82333;
+        }
+
+        .clear-search.active {
+            display: inline-block;
+        }
+
+        /* 分類樹樣式 */
+        .category-tree {
+            flex: 1; /* 佔用剩餘空間 */
+            min-height: 0; /* 允許縮小 */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .category-tree h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2rem;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0; /* 防止標題被壓縮 */
+        }
+
+        .reset-categories {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .reset-categories:hover {
+            background: #5a6268;
+        }
+
+        /* 分類樹容器 - 可滾動區域 */
+        .category-tree-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;     /* 隱藏水平滾動 */
+            padding-right: 5px;
+            margin-right: -5px;
+        }
+
+        .category-node {
+            margin-bottom: 5px;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 8px;       /* 調整內邊距 */
+            color: #555;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-radius: 4px;
+            white-space: nowrap;    /* 防止文字折行 */
+            min-width: 0;           /* 允許彈性調整 */
+        }
+
+        .category-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .category-item.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .category-item.active .category-count {
+            background-color: white;
+            color: #007bff;
+        }
+
+        .category-name {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;                /* 佔用剩餘空間 */
+        }
+
+        .category-toggle {
+            font-size: 0.8rem;
+            color: #6c757d;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-right: 5px;
+        }
+
+        .category-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .category-count {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+
+        .category-children {
+            margin-left: 20px;
+            border-left: 2px solid #e9ecef;
+            padding-left: 10px;
+            display: none;
+        }
+
+        .category-children.expanded {
+            display: block;
+        }
+
+        /* 自訂滾動條樣式 */
+        .category-tree-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .category-tree-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .category-tree-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .category-tree-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* 文章卡片樣式 */
+        .post-item {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+
+        .post-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .post-item.hidden {
+            display: none;
+        }
+
+        .post-item h2 {
+            margin: 0 0 12px 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .post-item h2 a {
+            color: #2c3e50;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .post-item h2 a:hover {
+            color: #007bff;
+        }
+
+        .post-meta {
+            color: #666;
+            font-size: 0.9rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .post-meta .date {
+            color: #888;
+            font-weight: 500;
+        }
+
+        .tag, .category {
+            background: orange;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 16px;
+            margin-right: 6px;
+            font-size: 0.6rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+
+        .tag:hover, .category:hover {
+            transform: scale(1.05);
+        }
+
+        .category {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
+        .categories, .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .blog-header {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .blog-header h1 {
+            color: #2c3e50;
+            margin: 0 0 20px 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .blog-stats {
+            color: #666;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .blog-stats span {
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .clear-filter {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .clear-filter:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .clear-filter.hidden {
+            display: none;
+        }
+
+        .filter-info {
+            color: #007bff;
+            font-weight: 600;
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #e7f3ff, #f0f8ff);
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            display: none;
+        }
+
+        .filter-info.active {
+            display: block;
+        }
+
+        .search-info {
+            color: #28a745;
+            font-weight: 600;
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #d4edda, #e8f5e8);
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            display: none;
+        }
+
+        .search-info.active {
+            display: block;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .sidebar {
+                position: static;
+                order: -1;
+                max-height: none;
+                min-width: auto;
+                max-width: none;
+                width: 100%;
+            }
+
+            .category-tree-container {
+                max-height: 300px; /* 在手機上限制高度 */
+            }
+
+            .post-item {
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+
+            .post-item h2 {
+                font-size: 1.3rem;
+            }
+
+            .blog-header {
+                padding: 30px 20px;
+            }
+
+            .blog-header h1 {
+                font-size: 2rem;
+            }
+
+            .blog-stats {
+                gap: 15px;
+                font-size: 0.9rem;
+            }
+
+            .blog-stats span {
+                padding: 6px 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .post-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .blog-stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <main class="main-content">
+        <header class="blog-header">
+            <h1>LEOSHIANG 的部落格</h1>
+            <div class="blog-stats">
+                <span>文章總數: <span id="total-count">{{PostCount}}</span></span>
+                <span>顯示: <span id="visible-count">{{PostCount}}</span> 篇</span>
+                <button class="clear-filter hidden" id="clear-filter">清除篩選</button>
+            </div>
+        </header>
+
+        <div class="filter-info" id="filter-info">
+            正在顯示分類「<span id="filter-category"></span>」的文章
+        </div>
+
+        <div class="search-info" id="search-info">
+            搜尋結果：「<span id="search-query"></span>」
+        </div>
+
+        <div class="posts" id="posts-container">
+            {{#each Posts}}
+            <article class="post-item" data-categories="{{CategoriesPlain}}" data-tags="{{TagsPlain}}"
+                     data-title="{{Title}}">
+                <h2><a href="{{HtmlFilePath}}">{{Title}}</a></h2>
+                <div class="post-meta">
+                    <span class="date">{{PublishedDate}}</span>
+                    {{#if Categories}}
+                    <div class="categories">{{{Categories}}}</div>
+                    {{/if}}
+                    {{#if Tags}}
+                    <div class="tags">{{{Tags}}}</div>
+                    {{/if}}
+                </div>
+            </article>
+            {{/each}}
+        </div>
+    </main>
+
+    <aside class="sidebar">
+        <!-- 搜尋區域 -->
+        <div class="search-section">
+            <h3>搜尋文章</h3>
+            <div class="search-container">
+                <input class="search-input"
+                       id="search-input"
+                       placeholder="搜尋標題、標籤或分類..."
+                       type="text">
+                <button class="search-button" id="search-button">🔍</button>
+            </div>
+            <div class="search-results" id="search-results">
+                找到 <span id="search-count">0</span> 篇文章
+            </div>
+            <button class="clear-search" id="clear-search">清除搜尋</button>
+        </div>
+
+        <!-- 分類目錄 -->
+        <div class="category-tree">
+            <h3>
+                分類目錄
+                <button class="reset-categories" id="reset-categories">重設</button>
+            </h3>
+            <div class="category-tree-container">
+                {{{CategoryTree}}}
+            </div>
+        </div>
+    </aside>
+</div>
+
+<script>
+    // 搜尋和篩選功能
+    class BlogFilter {
+        constructor() {
+            this.allPosts = [];
+            this.currentCategoryFilter = null;
+            this.currentSearchQuery = null;
+            this.init();
+        }
+
+        init() {
+            // 收集所有文章
+            this.allPosts = Array.from(document.querySelectorAll('.post-item'));
+
+            // 綁定事件
+            this.bindSearchEvents();
+            this.bindCategoryEvents();
+            this.bindFilterEvents();
+        }
+
+        bindSearchEvents() {
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const clearSearchButton = document.getElementById('clear-search');
+
+            // 搜尋按鈕點擊
+            searchButton.addEventListener('click', () => {
+                this.performSearch();
+            });
+
+            // 輸入框按 Enter 鍵
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performSearch();
+                }
+            });
+
+            // 即時搜尋（輸入時）
+            searchInput.addEventListener('input', (e) => {
+                if (e.target.value.trim() === '') {
+                    this.clearSearch();
+                }
+            });
+
+            // 清除搜尋
+            clearSearchButton.addEventListener('click', () => {
+                this.clearSearch();
+            });
+        }
+
+        bindCategoryEvents() {
+            // 綁定展開/收合事件
+            document.querySelectorAll('.category-toggle').forEach(toggle => {
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleCategory(toggle);
+                });
+            });
+
+            // 綁定分類篩選事件
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('category-toggle')) {
+                        return;
+                    }
+
+                    const categoryPath = item.getAttribute('data-category-path');
+                    const categoryName = item.getAttribute('data-category-name');
+
+                    if (categoryPath && categoryName) {
+                        this.filterByCategory(categoryPath, categoryName);
+                    }
+                });
+            });
+
+            // 重設分類按鈕
+            document.getElementById('reset-categories').addEventListener('click', () => {
+                this.resetCategories();
+            });
+        }
+
+        bindFilterEvents() {
+            // 清除篩選按鈕
+            document.getElementById('clear-filter').addEventListener('click', () => {
+                this.clearAllFilters();
+            });
+        }
+
+        performSearch() {
+            const searchInput = document.getElementById('search-input');
+            const query = searchInput.value.trim();
+
+            if (query === '') {
+                this.clearSearch();
+                return;
+            }
+
+            this.currentSearchQuery = query.toLowerCase();
+
+            // 執行搜尋
+            let visibleCount = 0;
+            this.allPosts.forEach(post => {
+                const title = (post.getAttribute('data-title') || '').toLowerCase();
+                const tags = (post.getAttribute('data-tags') || '').toLowerCase();
+                const categories = (post.getAttribute('data-categories') || '').toLowerCase();
+
+                const matchesSearch = title.includes(this.currentSearchQuery) ||
+                    tags.includes(this.currentSearchQuery) ||
+                    categories.includes(this.currentSearchQuery);
+
+                // 同時考慮分類篩選
+                let matchesCategory = true;
+                if (this.currentCategoryFilter) {
+                    matchesCategory = categories.includes(this.currentCategoryFilter.toLowerCase());
+                }
+
+                const shouldShow = matchesSearch && matchesCategory;
+
+                if (shouldShow) {
+                    post.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    post.classList.add('hidden');
+                }
+            });
+
+            this.updateSearchUI(visibleCount, query);
+        }
+
+        clearSearch() {
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = '';
+            this.currentSearchQuery = null;
+
+            // 重新篩選（只考慮分類篩選）
+            this.applyFilters();
+            this.updateSearchUI(0, null);
+        }
+
+        filterByCategory(categoryPath, categoryName) {
+            this.currentCategoryFilter = categoryPath;
+
+            // 移除之前的活動狀態
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 添加當前活動狀態
+            document.querySelectorAll(`[data-category-path="${categoryPath}"]`).forEach(item => {
+                item.classList.add('active');
+            });
+
+            // 重新篩選
+            this.applyFilters();
+            this.updateCategoryUI(categoryName);
+        }
+
+        resetCategories() {
+            this.currentCategoryFilter = null;
+
+            // 移除所有活動狀態
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 重新篩選
+            this.applyFilters();
+            this.updateCategoryUI(null);
+        }
+
+        clearAllFilters() {
+            this.currentCategoryFilter = null;
+            this.currentSearchQuery = null;
+
+            // 清除搜尋輸入
+            document.getElementById('search-input').value = '';
+
+            // 移除分類活動狀態
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 顯示所有文章
+            this.allPosts.forEach(post => {
+                post.classList.remove('hidden');
+            });
+
+            // 更新UI
+            this.updateSearchUI(0, null);
+            this.updateCategoryUI(null);
+            this.updateStats(this.allPosts.length);
+        }
+
+        applyFilters() {
+            let visibleCount = 0;
+
+            this.allPosts.forEach(post => {
+                const title = (post.getAttribute('data-title') || '').toLowerCase();
+                const tags = (post.getAttribute('data-tags') || '').toLowerCase();
+                const categories = (post.getAttribute('data-categories') || '').toLowerCase();
+
+                // 檢查搜尋條件
+                let matchesSearch = true;
+                if (this.currentSearchQuery) {
+                    matchesSearch = title.includes(this.currentSearchQuery) ||
+                        tags.includes(this.currentSearchQuery) ||
+                        categories.includes(this.currentSearchQuery);
+                }
+
+                // 檢查分類條件
+                let matchesCategory = true;
+                if (this.currentCategoryFilter) {
+                    matchesCategory = categories.includes(this.currentCategoryFilter.toLowerCase());
+                }
+
+                const shouldShow = matchesSearch && matchesCategory;
+
+                if (shouldShow) {
+                    post.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    post.classList.add('hidden');
+                }
+            });
+
+            this.updateStats(visibleCount);
+        }
+
+        toggleCategory(toggle) {
+            const categoryNode = toggle.closest('.category-node');
+            const children = categoryNode.querySelector('.category-children');
+
+            if (children) {
+                const isExpanded = children.classList.contains('expanded');
+
+                if (isExpanded) {
+                    children.classList.remove('expanded');
+                    toggle.classList.remove('expanded');
+                } else {
+                    children.classList.add('expanded');
+                    toggle.classList.add('expanded');
+                }
+            }
+        }
+
+        updateSearchUI(visibleCount, query) {
+            const searchResults = document.getElementById('search-results');
+            const searchCount = document.getElementById('search-count');
+            const clearSearchButton = document.getElementById('clear-search');
+            const searchInfo = document.getElementById('search-info');
+            const searchQuery = document.getElementById('search-query');
+
+            if (query) {
+                searchResults.classList.add('active');
+                searchCount.textContent = visibleCount;
+                clearSearchButton.classList.add('active');
+                searchInfo.classList.add('active');
+                searchQuery.textContent = query;
+            } else {
+                searchResults.classList.remove('active');
+                clearSearchButton.classList.remove('active');
+                searchInfo.classList.remove('active');
+            }
+        }
+
+        updateCategoryUI(categoryName) {
+            const filterInfo = document.getElementById('filter-info');
+            const filterCategory = document.getElementById('filter-category');
+            const clearFilterButton = document.getElementById('clear-filter');
+
+            if (categoryName) {
+                filterInfo.classList.add('active');
+                filterCategory.textContent = categoryName;
+                clearFilterButton.classList.remove('hidden');
+            } else {
+                filterInfo.classList.remove('active');
+                clearFilterButton.classList.add('hidden');
+            }
+        }
+
+        updateStats(visibleCount) {
+            const visibleCountElement = document.getElementById('visible-count');
+            visibleCountElement.textContent = visibleCount;
+        }
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        new BlogFilter();
+    });
+</script>
+</body>
+</html>

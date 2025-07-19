@@ -1,0 +1,410 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0"
+          name="viewport">
+    <title>{{Title}}</title>
+    <style>
+        /* 基礎排版 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        /* 兩欄網格：左內容、右側欄 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr auto; /* 改為 auto，讓側邊欄自動調整寬度 */
+            gap: 40px;
+        }
+
+        /* 文章主要內容 */
+        .main-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
+            overflow-wrap: break-word;  /* 強制長文字換行 */
+            word-wrap: break-word;      /* 相容性 */
+            min-width: 0;              /* 允許 flex/grid 項目縮小 */
+        }
+
+        /* 右側欄 */
+        .sidebar {
+            background: white;
+            padding: 0;                     /* 移除整體 padding */
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            min-width: 250px;               /* 設定最小寬度 */
+            max-width: 400px;               /* 設定最大寬度，避免太寬 */
+            width: max-content;             /* 根據內容調整寬度 */
+        }
+
+        /* 返回首頁按鈕 - 固定在頂部 */
+        .home-link {
+            font-size: .9rem;
+            background: #28a745;
+            color: #fff;
+            padding: 12px 20px;             /* 調整 padding */
+            text-decoration: none;
+            text-align: center;
+            border-radius: 8px 8px 0 0;     /* 只有上方圓角 */
+            flex-shrink: 0;                 /* 防止收縮 */
+            margin: 0;                      /* 移除外邊距 */
+            white-space: nowrap;            /* 防止文字折行 */
+        }
+
+        .home-link:hover {
+            background: #218838;
+        }
+
+        /* TOC 容器 - 可滾動區域 */
+        .toc-container {
+            flex: 1;                        /* 佔用剩餘空間 */
+            overflow-y: auto;               /* 允許滾動 */
+            padding: 20px;                  /* 恢復內邊距 */
+            min-height: 0;                  /* 允許收縮 */
+        }
+
+        /* TOC 樣式 */
+        .toc-title {
+            margin: 0 0 15px 0;             /* 調整上邊距 */
+            font-size: 1.1rem;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 6px;
+            color: #333;
+        }
+
+        /* TOC 樣式調整 */
+        .toc-list {
+            list-style: none;
+            padding-left: 0;
+            font-size: .85rem;
+        }
+
+        .toc-list li {
+            margin-bottom: 6px;
+            overflow: hidden;               /* 如果內容太長，隱藏超出部分 */
+            text-overflow: ellipsis;        /* 顯示省略號 */
+        }
+
+        .toc-list a {
+            text-decoration: none;
+            color: #007bff;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;            /* 防止 TOC 項目折行 */
+        }
+
+        .toc-list a:hover {
+            text-decoration: underline;
+        }
+
+        /* 自訂滾動條樣式 */
+        .toc-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .toc-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .toc-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .toc-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* 文章標題與段落 */
+        .article-title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #212529;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            word-wrap: break-word;
+        }
+
+        .article-meta {
+            color: #6c757d;
+            font-size: .9rem;
+            margin-bottom: 30px;
+        }
+
+        /* 文章內容區域防止溢出 */
+        .article-content {
+            overflow-x: auto;          /* 水平溢出時顯示滾動條 */
+            max-width: 100%;           /* 不超過父容器寬度 */
+        }
+
+        .article-content h1,
+        .article-content h2,
+        .article-content h3,
+        .article-content h4,
+        .article-content h5,
+        .article-content h6 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            line-height: 1.3;
+            scroll-margin-top: 80px; /* 為錨點留空 */
+        }
+
+        .article-content p {
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+
+        .article-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, .1);
+        }
+
+        /* 確保各種內容元素不會撐破容器 */
+        .article-content pre,
+        .article-content code,
+        .article-content table,
+        .article-content iframe,
+        .article-content video {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        /* 程式碼區塊特殊處理 */
+        .article-content pre {
+            white-space: pre-wrap;     /* 保持格式但允許換行 */
+            word-wrap: break-word;
+            overflow-x: auto;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+
+        /* 表格響應式處理 */
+        .article-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9rem;
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .article-content th,
+        .article-content td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+            word-wrap: break-word;
+        }
+
+        .article-content thead,
+        .article-content tbody,
+        .article-content tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .article-content thead {
+            width: calc(100% - 1em);
+        }
+
+        .tag, .category {
+            background: orange;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-right: 5px;
+            font-size: 0.6rem;
+        }
+
+        .category {
+            font-size: 0.6rem;
+            background: #28a745;
+        }
+
+        /* ======================= */
+        /* 返回頂端浮動按鈕           */
+        /* ======================= */
+        .back-to-top {
+            position: fixed; /* 以 viewport 為基準，待會用 JS 調整 right */
+            bottom: 30px;
+            right: 30px; /* 初始值，JS 會覆蓋 */
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: #007bff;
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, .2);
+            display: none; /* 預設隱藏 */
+            align-items: center;
+            justify-content: center;
+            transition: opacity .3s ease, transform .3s ease;
+            z-index: 999;
+        }
+
+        .back-to-top.show {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .back-to-top.hide {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        /* <= 768px：改用單欄排版，文章區域可佔滿寬度 */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;      /* 只剩一欄 */
+            }
+
+            /* 讓側欄排在文章前，並取消 sticky 與高度限制 */
+            .sidebar {
+                order: -1;                       /* 排在最前 */
+                position: static;
+                max-height: none;
+                margin-bottom: 20px;             /* 與文章留間距 */
+            }
+
+            .toc-container {
+                overflow: visible;               /* 移動設備上不滾動 */
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 左欄：文章內容 -->
+    <article class="main-content">
+        <div class="article-meta">
+            <span class="date">{{PublishedDate}}</span>
+            {{#if Categories}}
+            <div class="categories">{{{Categories}}}</div>
+            {{/if}}
+            {{#if Tags}}
+            <div class="tags">{{{Tags}}}</div>
+            {{/if}}
+        </div>
+        <div class="article-content">
+            {{{Content}}}
+        </div>
+        <button aria-label="返回頂端"
+                class="back-to-top"
+                id="backToTop">↑
+        </button>
+    </article>
+
+    <!-- 右欄：返回首頁＋目錄 -->
+    <aside class="sidebar">
+        <!-- 固定在頂部的返回首頁按鈕 -->
+        <a class="home-link" href="index.html">返回首頁</a>
+
+        <!-- 可滾動的目錄區域 -->
+        <div class="toc-container">
+            <h3 class="toc-title">目錄</h3>
+            <ul class="toc-list" id="toc"></ul>
+        </div>
+    </aside>
+</div>
+
+<script>
+    /* 動態產生 TOC */
+    (function () {
+        const tocUl = document.getElementById('toc');
+        if (!tocUl) return;
+
+        const headings = document.querySelectorAll('.article-content h1, .article-content h2, .article-content h3');
+        headings.forEach(h => {
+            if (!h.id) {
+                h.id = h.textContent.trim()
+                    .toLowerCase()
+                    .replace(/\\s+/g, '-')
+                    .replace(/[^a-z0-9\\-]/g, '');
+            }
+            const li = document.createElement('li');
+            li.style.marginLeft = (parseInt(h.tagName.substring(1)) - 1) * 10 + 'px';
+
+            const a = document.createElement('a');
+            a.href = '#' + h.id;
+            a.textContent = h.textContent;
+
+            li.appendChild(a);
+            tocUl.appendChild(li);
+        });
+    })();
+
+    /* 返回頂端按鈕邏輯 */
+    (() => {
+        const btn = document.getElementById('backToTop');
+        if (!btn) return;
+
+        /* 捲動顯示 / 隱藏 */
+        const toggleVisibility = () => {
+            if (window.scrollY > 300) {
+                btn.classList.add('show');
+                btn.classList.remove('hide');
+            } else {
+                btn.classList.add('hide');
+                btn.classList.remove('show');
+            }
+        };
+
+        /* 動態計算 right，讓按鈕貼齊 .main-content 右邊 */
+        const adjustPosition = () => {
+            const article = document.querySelector('.main-content');
+            if (!article) return;
+            const rect = article.getBoundingClientRect();
+
+            /*「main-content 右邊」到「視窗右邊」的距離 + 預留 20px */
+            const gap = window.innerWidth - rect.right + 20;
+            const btnWidth = btn.offsetWidth || 48;
+
+            /* 寬螢幕才使用精確定位；窄螢幕改用預設 */
+            if (window.innerWidth > 768 && gap > btnWidth) {
+                btn.style.right = gap + 'px';
+            } else {
+                btn.style.right = '20px';
+            }
+        };
+
+        /* 初始、捲動、縮放時皆執行 */
+        toggleVisibility();
+        adjustPosition();
+        window.addEventListener('scroll', toggleVisibility);
+        window.addEventListener('resize', adjustPosition);
+
+        /* 點擊平滑捲頂 */
+        btn.addEventListener('click', () => {
+            window.scroll({top: 0, behavior: 'smooth'});
+        });
+    })();
+</script>
+</body>
+</html>
