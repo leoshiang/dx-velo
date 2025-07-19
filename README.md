@@ -1,4 +1,4 @@
-﻿# Velo - 靜態部落格生成器
+﻿# velo - 靜態部落格生成器
 
 一個簡單但功能豐富的靜態部落格生成器，支援 Markdown 文章並自動產生分類目錄。
 
@@ -37,7 +37,7 @@
 2. 解壓縮到任意目錄
 3. 建立 `velo.config.json` 設定檔案 (可參考範例)
 4. 建立 `Posts` 目錄並放置 Markdown 文章
-5. 執行 Velo 程式產生網站
+5. 執行 velo 程式產生網站
 
 ### 從原始碼編譯
 
@@ -49,7 +49,7 @@
 **Clone 專案：**
 ```bash
 git clone https://github.com/leoshiang/dx-velo.git
-cd Velo
+cd velo
 ```
 
 **開發模式執行：**
@@ -106,19 +106,19 @@ chmod +x build-release.sh
 releases/ 
 └── 20241201/ # 發布日期
 ├── BUILD_INFO.txt # 建置資訊
-├── Velo-v1.0.0-win-x64.zip # Windows x64 版本
-├── Velo-v1.0.0-win-arm64.zip # Windows ARM64 版本
-├── Velo-v1.0.0-linux-x64.zip # Linux x64 版本
-├── Velo-v1.0.0-linux-arm64.zip # Linux ARM64 版本
-├── Velo-v1.0.0-osx-x64.zip # macOS Intel 版本
-└── Velo-v1.0.0-osx-arm64.zip # macOS Apple Silicon 版本
+├── velo-v1.0.0-win-x64.zip # Windows x64 版本
+├── velo-v1.0.0-win-arm64.zip # Windows ARM64 版本
+├── velo-v1.0.0-linux-x64.zip # Linux x64 版本
+├── velo-v1.0.0-linux-arm64.zip # Linux ARM64 版本
+├── velo-v1.0.0-osx-x64.zip # macOS Intel 版本
+└── velo-v1.0.0-osx-arm64.zip # macOS Apple Silicon 版本
 ```
 
 每個 ZIP 檔案包含：
 ```
-Velo-v1.0.0-win-x64/ 
-├── Velo.exe # 執行檔 (Windows) 或 Velo (Unix) 
-├── Templates/ # 模板目錄 │ 
+velo-v1.0.0-win-x64/ 
+├── velo.exe # 執行檔 (Windows) 或 velo (Unix) 
+├── templates/ # 模板目錄 │ 
 ├── index.html # 首頁模板 │ 
 └── post.html # 文章頁模板 
 ├── velo.config.json.example # 設定檔範例 
@@ -126,7 +126,7 @@ Velo-v1.0.0-win-x64/
 ```
 
 ## 設定檔案 (velo.config.json)
-Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設定選項說明：
+velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設定選項說明：
 ### 基本設定範例
 ``` json
 {
@@ -140,7 +140,7 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
   "BlogContentPath": "./Posts",
   "BlogSettings": {
     "HtmlOutputPath": "./Output",
-    "TemplatePath": "./Templates",
+    "TemplatePath": "./templates",
     "ImageOutputPath": "./Output/images",
     "ClearOutputDirectoryOnStart": true,
     "AutoAddYamlHeader": true,
@@ -155,7 +155,7 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
 | --- | --- | --- | --- |
 | `BlogContentPath` | `string` | `"./Posts"` | Markdown 文章檔案存放目錄 |
 | `HtmlOutputPath` | `string` | `"./Output"` | 生成的 HTML 檔案輸出目錄 |
-| `TemplatePath` | `string` | `"./Templates"` | 模板檔案存放目錄 |
+| `TemplatePath` | `string` | `"./templates"` | 模板檔案存放目錄 |
 | `ImageOutputPath` | `string` | `"./Output/images"` | 圖片資源輸出目錄 |
 
 **路徑格式說明：**
@@ -180,7 +180,7 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
       "Default": "Information",      // 一般日誌等級
       "Microsoft": "Warning",        // Microsoft 元件日誌等級  
       "System": "Warning",           // 系統日誌等級
-      "Velo": "Debug"               // Velo 應用程式日誌等級
+      "velo": "Debug"               // velo 應用程式日誌等級
     }
   }
 }
@@ -199,8 +199,7 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
 {
   "BlogContentPath": "Posts",
   "BlogSettings": {
-    "HtmlOutputPath": "Output",
-    "SiteTitle": "我的部落格"
+    "HtmlOutputPath": "Output"
   }
 }
 ```
@@ -340,13 +339,13 @@ tags: ["標籤1", "標籤2"]
 
 ### 專案結構
 
-Velo/
+velo/
 ├── Models/             # 資料模型
 ├── Services/           # 業務邏輯服務
-├── Templates/          # 內建模板
+├── templates/          # 內建模板
 ├── Utils/              # 工具類別
 ├── Program.cs          # 程式進入點
-├── Velo.csproj         # 專案檔案
+├── velo.csproj         # 專案檔案
 ├── velo.config.json    # 設定檔
 ├── build-release.bat   # Windows 發布腳本
 ├── build-release.sh    # Unix 發布腳本
@@ -360,7 +359,7 @@ Velo/
 
 ## 模板覆蓋
 系統會自動：
-1. 檢查 `Templates` 目錄是否存在對應的模板檔案
+1. 檢查 `templates` 目錄是否存在對應的模板檔案
 2. 如果存在，使用自定義模板
 3. 如果不存在，使用預設的內建模板
 4. 支援部分覆蓋，可只自定義需要的模板

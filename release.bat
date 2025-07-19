@@ -7,7 +7,7 @@ echo     Velo 發布工具 v1.0.2
 echo ================================
 
 :: 設定變數
-set "PROJECT_NAME=Velo"
+set "PROJECT_NAME=velo"
 set "VERSION=1.0.2"
 set "TEMP_DIR=temp_build"
 

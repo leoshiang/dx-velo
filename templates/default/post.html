@@ -52,6 +52,7 @@
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
             min-width: 0;
+            /* 不再需要 relative 定位 */
         }
 
         .sidebar {
@@ -273,9 +274,9 @@
         }
 
         .back-to-top {
-            position: fixed;
+            position: fixed; /* 改回固定定位 */
             bottom: 30px;
-            right: 30px;
+            right: 30px; /* 預設/手機版的右側距離 */
             width: 50px;
             height: 50px;
             border: none;
@@ -285,7 +286,7 @@
             font-size: 1.5rem;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            display: none;
+            display: none; /* JS控制顯示 */
             align-items: center;
             justify-content: center;
             transition: all var(--transition-speed) ease;
@@ -398,15 +399,48 @@
             });
         }
 
+        // --- 返回頂端按鈕邏輯 ---
         const backToTopBtn = document.getElementById('backToTop');
-        if (backToTopBtn) {
-            const toggleVisibility = () => {
-                window.scrollY > 300 ? backToTopBtn.classList.add('show') : backToTopBtn.classList.remove('show');
+        const mainContent = document.querySelector('.main-content');
+
+        if (backToTopBtn && mainContent) {
+            // 函數：根據視窗和內容位置，調整按鈕的水平位置
+            const adjustButtonPosition = () => {
+                const mainContentRect = mainContent.getBoundingClientRect();
+                const viewportWidth = window.innerWidth;
+
+                // 只在寬螢幕（佈局為兩欄時）進行動態計算
+                if (viewportWidth > 992) {
+                    // 計算文章區塊右側到視窗邊緣的距離
+                    const gap = viewportWidth - mainContentRect.right;
+                    // 設置按鈕的 right 屬性，確保它在文章區塊右側外 20px
+                    // Math.max 確保按鈕不會因為視窗過窄而跑到左邊
+                    backToTopBtn.style.right = Math.max(30, gap + 20) + 'px';
+                } else {
+                    // 在窄螢幕上，使用固定的 right 值
+                    backToTopBtn.style.right = '30px';
+                }
             };
+
+            // 函數：根據滾動位置，決定是否顯示按鈕
+            const toggleVisibility = () => {
+                if (window.scrollY > 300) {
+                    backToTopBtn.classList.add('show');
+                } else {
+                    backToTopBtn.classList.remove('show');
+                }
+            };
+
+            // 添加事件監聽
             window.addEventListener('scroll', toggleVisibility);
+            window.addEventListener('resize', adjustButtonPosition); // 視窗縮放時也要調整
             backToTopBtn.addEventListener('click', () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
+
+            // 初始載入時，立即執行一次
+            toggleVisibility();
+            adjustButtonPosition();
         }
     });
 </script>
