@@ -1,0 +1,372 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>LEOSHIANG 的部落格</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #003366; /* Academic Blue */
+            --background-color: #ffffff;
+            --text-color: #212121;
+            --subtle-text-color: #555555;
+            --border-color: #cccccc;
+            --font-family-serif: 'Lora', 'Times New Roman', serif;
+            --font-family-sans-serif: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --transition-speed: 0.2s;
+        }
+
+        body {
+            font-family: var(--font-family-serif);
+            line-height: 1.8;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 50px;
+        }
+
+        h1, h2, h3, h4, h5, h6, button, .search-input, .category-item {
+            font-family: var(--font-family-sans-serif);
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            min-width: 0;
+        }
+
+        .search-section, .category-tree {
+            margin-bottom: 30px;
+        }
+
+        .search-section h3, .category-tree h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-container { position: relative; }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 0.9rem;
+            transition: border-color var(--transition-speed) ease;
+            box-sizing: border-box;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .search-button {
+            display: none; /* Hidden for a cleaner look */
+        }
+
+        .search-results, .clear-search {
+            font-size: 0.85rem;
+            margin-top: 8px;
+            color: var(--subtle-text-color);
+        }
+        .search-results { display: none; }
+        .search-results.active { display: block; }
+
+        .clear-search {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            padding: 0;
+            text-decoration: underline;
+            cursor: pointer;
+            display: none;
+        }
+        .clear-search.active { display: inline; }
+
+
+        .reset-categories {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: var(--primary-color);
+            cursor: pointer;
+            text-transform: none;
+            letter-spacing: normal;
+            text-decoration: underline;
+        }
+
+        .category-tree-container {
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 0;
+            color: var(--subtle-text-color);
+            cursor: pointer;
+            transition: color var(--transition-speed) ease;
+        }
+
+        .category-item:hover { color: var(--primary-color); }
+        .category-item.active .category-name {
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+        .category-name { display: flex; align-items: center; }
+
+        .category-toggle {
+            font-size: 0.7rem;
+            transition: transform var(--transition-speed) ease;
+            margin-right: 8px;
+            padding: 5px;
+        }
+        .category-toggle.expanded { transform: rotate(90deg); }
+
+        .category-count {
+            font-size: 0.85rem;
+            color: var(--subtle-text-color);
+            margin-left: auto;
+        }
+        .category-item.active .category-count { color: var(--primary-color); }
+
+        .category-children {
+            margin-left: 10px;
+            padding-left: 15px;
+            border-left: 1px solid var(--border-color);
+            display: none;
+        }
+        .category-children.expanded { display: block; }
+
+        .post-item {
+            margin-bottom: 40px;
+            padding-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .post-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .post-item.hidden { display: none; }
+
+        .post-item h2 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .post-item h2 a {
+            color: var(--text-color);
+            text-decoration: none;
+            transition: color var(--transition-speed) ease;
+        }
+        .post-item h2 a:hover {
+            color: var(--primary-color);
+            text-decoration: underline;
+        }
+
+        .post-meta {
+            color: var(--subtle-text-color);
+            font-size: 0.9rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px 15px;
+            align-items: center;
+        }
+
+        .tag, .category {
+            background: none;
+            color: var(--primary-color);
+            padding: 0;
+            font-size: 0.85rem;
+            text-decoration: underline;
+        }
+        .categories, .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .categories a, .tags a { color: var(--primary-color); }
+
+        .blog-header {
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--text-color);
+        }
+
+        .blog-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 3rem;
+            font-weight: 700;
+        }
+
+        .blog-stats {
+            color: var(--subtle-text-color);
+            font-size: 0.9rem;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .clear-filter {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 0.9rem;
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .clear-filter.hidden { display: none; }
+
+        .filter-info, .search-info {
+            font-family: var(--font-family-sans-serif);
+            font-weight: normal;
+            margin-bottom: 24px;
+            padding: 12px 15px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+            background-color: #f8f8f8;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .filter-info.active, .search-info.active { display: block; }
+
+
+        @media (max-width: 992px) {
+            .container { grid-template-columns: 1fr; }
+            .sidebar {
+                order: -1;
+                position: static;
+                max-height: none;
+                width: 100%;
+                box-sizing: border-box;
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 30px;
+            }
+            .category-tree-container { max-height: 250px; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 15px; }
+            .container { gap: 30px; }
+            .post-item h2 { font-size: 1.6rem; }
+            .blog-header h1 { font-size: 2.2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <main class="main-content">
+        <header class="blog-header">
+            <h1>LEOSHIANG 的部落格</h1>
+            <div class="blog-stats">
+                <span>文章總數: <span id="total-count">{{PostCount}}</span></span>
+                <span>顯示: <span id="visible-count">{{PostCount}}</span> 篇</span>
+                <button class="clear-filter hidden" id="clear-filter">清除篩選</button>
+            </div>
+        </header>
+
+        <div class="filter-info" id="filter-info">
+            正在顯示分類「<span id="filter-category"></span>」的文章
+        </div>
+
+        <div class="search-info" id="search-info">
+            搜尋結果：「<span id="search-query"></span>」
+        </div>
+
+        <div class="posts" id="posts-container">
+            {{#each Posts}}
+            <article class="post-item" data-categories="{{CategoriesPlain}}" data-tags="{{TagsPlain}}"
+                     data-title="{{Title}}">
+                <h2><a href="{{HtmlFilePath}}">{{Title}}</a></h2>
+                <div class="post-meta">
+                    <span class="date">{{PublishedDate}}</span>
+                    {{#if Categories}}
+                    <div class="categories">{{{Categories}}}</div>
+                    {{/if}}
+                    {{#if Tags}}
+                    <div class="tags">{{{Tags}}}</div>
+                    {{/if}}
+                </div>
+            </article>
+            {{/each}}
+        </div>
+    </main>
+
+    <aside class="sidebar">
+        <div class="search-section">
+            <h3>Search</h3>
+            <div class="search-container">
+                <input class="search-input" id="search-input" placeholder="搜尋..." type="text">
+                <button class="search-button" id="search-button">🔍</button>
+            </div>
+            <div class="search-results" id="search-results">
+                找到 <span id="search-count">0</span> 篇文章. <button class="clear-search" id="clear-search">清除</button>
+            </div>
+        </div>
+
+        <div class="category-tree">
+            <h3>
+                Categories
+                <button class="reset-categories" id="reset-categories">重設</button>
+            </h3>
+            <div class="category-tree-container">
+                {{{CategoryTree}}}
+            </div>
+        </div>
+    </aside>
+</div>
+
+<script>
+    // The original JavaScript is kept as it is compatible with the new structure.
+    class BlogFilter {
+        constructor() { this.allPosts = []; this.currentCategoryFilter = null; this.currentSearchQuery = null; this.init(); }
+        init() { this.allPosts = Array.from(document.querySelectorAll('.post-item')); this.bindSearchEvents(); this.bindCategoryEvents(); this.bindFilterEvents(); this.updateStats(this.allPosts.length); }
+        bindSearchEvents() { const searchInput = document.getElementById('search-input'); const clearSearchButton = document.querySelector('.clear-search'); searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.performSearch(); } }); searchInput.addEventListener('input', (e) => { if (e.target.value.trim() === '') this.clearSearch(); }); clearSearchButton.addEventListener('click', () => this.clearSearch()); }
+        bindCategoryEvents() { document.querySelectorAll('.category-toggle').forEach(toggle => { toggle.addEventListener('click', (e) => { e.stopPropagation(); this.toggleCategory(toggle); }); }); document.querySelectorAll('.category-item').forEach(item => { item.addEventListener('click', (e) => { if (e.target.classList.contains('category-toggle')) return; const categoryPath = item.getAttribute('data-category-path'); const categoryName = item.getAttribute('data-category-name'); if (categoryPath && categoryName) this.filterByCategory(categoryPath, categoryName); }); }); document.getElementById('reset-categories').addEventListener('click', () => this.resetCategories()); }
+        bindFilterEvents() { document.getElementById('clear-filter').addEventListener('click', () => this.clearAllFilters()); }
+        performSearch() { const query = document.getElementById('search-input').value.trim(); this.currentSearchQuery = query.toLowerCase(); this.applyFilters(); }
+        clearSearch() { document.getElementById('search-input').value = ''; this.currentSearchQuery = null; this.applyFilters(); }
+        filterByCategory(categoryPath, categoryName) { this.currentCategoryFilter = categoryPath; document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active')); document.querySelectorAll(`[data-category-path="${categoryPath}"]`).forEach(item => { item.classList.add('active'); let parent = item.closest('.category-children'); while(parent) { parent.classList.add('expanded'); const toggle = parent.previousElementSibling.querySelector('.category-toggle'); if (toggle) toggle.classList.add('expanded'); parent = parent.parentElement.closest('.category-children'); } }); this.applyFilters(); }
+        resetCategories() { this.currentCategoryFilter = null; document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active')); this.applyFilters(); }
+        clearAllFilters() { document.getElementById('search-input').value = ''; this.currentSearchQuery = null; this.currentCategoryFilter = null; document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active')); this.applyFilters(); }
+        applyFilters() { let visibleCount = 0; this.allPosts.forEach(post => { const title = (post.dataset.title || '').toLowerCase(); const tags = (post.dataset.tags || '').toLowerCase(); const categories = (post.dataset.categories || '').toLowerCase(); let matchesSearch = true; if (this.currentSearchQuery) { matchesSearch = title.includes(this.currentSearchQuery) || tags.includes(this.currentSearchQuery) || categories.includes(this.currentSearchQuery); } let matchesCategory = true; if (this.currentCategoryFilter) { matchesCategory = (categories + '/').includes(this.currentCategoryFilter.toLowerCase() + '/'); } const shouldShow = matchesSearch && matchesCategory; post.classList.toggle('hidden', !shouldShow); if (shouldShow) visibleCount++; }); this.updateStats(visibleCount); this.updateSearchUI(this.currentSearchQuery ? visibleCount : 0, this.currentSearchQuery); const activeCategory = document.querySelector('.category-item.active'); this.updateCategoryUI(activeCategory ? activeCategory.dataset.categoryName : null); }
+        toggleCategory(toggle) { const children = toggle.closest('.category-item').nextElementSibling; if (children && children.classList.contains('category-children')) { children.classList.toggle('expanded'); toggle.classList.toggle('expanded'); } }
+        updateSearchUI(visibleCount, query) { const searchResults = document.getElementById('search-results'); const searchCount = document.getElementById('search-count'); const clearSearchButton = document.querySelector('.clear-search'); const searchInfo = document.getElementById('search-info'); const searchQuery = document.getElementById('search-query'); searchResults.classList.toggle('active', !!query); clearSearchButton.classList.toggle('active', !!query); searchInfo.classList.toggle('active', !!query); if (query) { searchCount.textContent = visibleCount; searchQuery.textContent = query; } }
+        updateCategoryUI(categoryName) { const filterInfo = document.getElementById('filter-info'); const filterCategory = document.getElementById('filter-category'); filterInfo.classList.toggle('active', !!categoryName); if (categoryName) { filterCategory.textContent = categoryName; } }
+        updateStats(visibleCount) { document.getElementById('visible-count').textContent = visibleCount; const totalCount = this.allPosts.length; const clearFilterButton = document.getElementById('clear-filter'); clearFilterButton.classList.toggle('hidden', visibleCount === totalCount); }
+    }
+    document.addEventListener('DOMContentLoaded', () => new BlogFilter());
+</script>
+</body>
+</html>

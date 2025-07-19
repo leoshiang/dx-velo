@@ -35,7 +35,7 @@
 
 1. 前往 [Releases 頁面](../../releases) 下載對應平台的 ZIP 檔案
 2. 解壓縮到任意目錄
-3. 建立 `Velo.config.json` 設定檔案 (可參考範例)
+3. 建立 `velo.config.json` 設定檔案 (可參考範例)
 4. 建立 `Posts` 目錄並放置 Markdown 文章
 5. 執行 Velo 程式產生網站
 
@@ -121,11 +121,11 @@ Velo-v1.0.0-win-x64/
 ├── Templates/ # 模板目錄 │ 
 ├── index.html # 首頁模板 │ 
 └── post.html # 文章頁模板 
-├── Velo.config.json.example # 設定檔範例 
+├── velo.config.json.example # 設定檔範例 
 └── README.txt # 使用說明
 ```
 
-## 設定檔案 (Velo.config.json)
+## 設定檔案 (velo.config.json)
 Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設定選項說明：
 ### 基本設定範例
 ``` json
@@ -347,7 +347,7 @@ Velo/
 ├── Utils/              # 工具類別
 ├── Program.cs          # 程式進入點
 ├── Velo.csproj         # 專案檔案
-├── Velo.config.json    # 設定檔
+├── velo.config.json    # 設定檔
 ├── build-release.bat   # Windows 發布腳本
 ├── build-release.sh    # Unix 發布腳本
 └── README.md           # 專案說明

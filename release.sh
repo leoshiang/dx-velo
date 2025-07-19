@@ -122,7 +122,7 @@ create_readme() {
 
 ## 快速開始
 
-1. 建立 \`Velo.config.json\` 設定檔（可參考 \`Velo.config.json.example\`）
+1. 建立 \`velo.config.json\` 設定檔（可參考 \`velo.config.json.example\`）
 2. 建立 \`Posts\` 目錄並放置 Markdown 檔案
 3. 執行程式：
 EOF
@@ -240,8 +240,8 @@ for i in "${!platforms[@]}"; do
     fi
     
     # 建立範例設定檔
-    if [ -f "Velo.config.json" ]; then
-        cp "Velo.config.json" "$release_dir/Velo.config.json.example"
+    if [ -f "velo.config.json" ]; then
+        cp "velo.config.json" "$release_dir/velo.config.json.example"
     fi
     
     # 建立 README 檔案

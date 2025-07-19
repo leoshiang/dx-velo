@@ -78,7 +78,7 @@ class Program
 
         // 取得執行檔所在目錄
         var executableDirectory = GetExecutableDirectory();
-        var configFilePath = Path.Combine(executableDirectory, "Velo.config.json");
+        var configFilePath = Path.Combine(executableDirectory, "velo.config.json");
 
         Console.WriteLine($"執行檔目錄: {executableDirectory}");
         Console.WriteLine($"設定檔路徑: {configFilePath}");
@@ -87,16 +87,16 @@ class Program
         // 檢查設定檔是否存在
         if (!File.Exists(configFilePath))
         {
-            Console.WriteLine("錯誤: 找不到設定檔 Velo.config.json");
+            Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
             Console.WriteLine($"請確保設定檔存在於執行檔目錄中: {executableDirectory}");
-            Console.WriteLine("您可以參考 Velo.config.json.example 建立設定檔");
+            Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
             Environment.Exit(1);
         }
 
         // 建立設定 - 使用執行檔所在目錄作為基準路徑
         var configuration = new ConfigurationBuilder()
             .SetBasePath(executableDirectory)
-            .AddJsonFile("Velo.config.json", optional: false, reloadOnChange: true)
+            .AddJsonFile("velo.config.json", optional: false, reloadOnChange: true)
             .Build();
 
         // 建立主機設定
@@ -108,7 +108,7 @@ class Program
 
                 // 只加載我們自訂的設定檔 - 使用執行檔目錄
                 config.SetBasePath(executableDirectory)
-                    .AddJsonFile("Velo.config.json", optional: false, reloadOnChange: true);
+                    .AddJsonFile("velo.config.json", optional: false, reloadOnChange: true);
             })
             .ConfigureServices((context, services) =>
             {
@@ -164,7 +164,7 @@ class Program
             // 檢查設定檔路徑
             if (string.IsNullOrEmpty(contentPath) || string.IsNullOrEmpty(outputPath))
             {
-                Console.WriteLine("錯誤: 請檢查 Velo.config.json 設定檔中的路徑設定");
+                Console.WriteLine("錯誤: 請檢查 velo.config.json 設定檔中的路徑設定");
                 Console.WriteLine("請確保 BlogContentPath 和 BlogSettings:HtmlOutputPath 已正確設定");
                 Environment.Exit(1);
             }
@@ -213,12 +213,12 @@ class Program
             Console.WriteLine("轉換作業已完成！");
             Console.WriteLine($"請查看輸出目錄: {outputPath}");
         }
-        catch (FileNotFoundException ex) when (ex.Message.Contains("Velo.config.json"))
+        catch (FileNotFoundException ex) when (ex.Message.Contains("velo.config.json"))
         {
             Console.WriteLine();
-            Console.WriteLine("錯誤: 找不到設定檔 Velo.config.json");
-            Console.WriteLine($"請確保 Velo.config.json 檔案存在於執行檔目錄中: {executableDirectory}");
-            Console.WriteLine("您可以參考 Velo.config.json.example 建立設定檔");
+            Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
+            Console.WriteLine($"請確保 velo.config.json 檔案存在於執行檔目錄中: {executableDirectory}");
+            Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
             Environment.Exit(1);
         }
         catch (Exception ex)
@@ -232,7 +232,7 @@ class Program
             if (ex.Message.Contains("configuration") || ex.Message.Contains("設定"))
             {
                 Console.WriteLine();
-                Console.WriteLine("請檢查 Velo.config.json 設定檔:");
+                Console.WriteLine("請檢查 velo.config.json 設定檔:");
                 Console.WriteLine("- 確保 JSON 格式正確");
                 Console.WriteLine("- 確保所有必要的設定項目存在");
                 Console.WriteLine("- 確保路徑設定正確且可存取");

@@ -100,7 +100,7 @@ for /l %%i in (0,1,5) do (
     xcopy /E /I /Q "Templates" "!release_dir!\Templates\" >nul
     
     :: 建立範例設定檔
-    copy "Velo.config.json" "!release_dir!\Velo.config.json.example" >nul
+    copy "velo.config.json" "!release_dir!\velo.config.json.example" >nul
     
     :: 建立 README 檔案
     call :create_readme "!release_dir!" "!displayName!" "!exe_name!"
@@ -171,7 +171,7 @@ echo 平台：%platform_name%
 echo.
 echo ## 快速開始
 echo.
-echo 1. 建立 `Velo.config.json` 設定檔（可參考 `Velo.config.json.example`）
+echo 1. 建立 `velo.config.json` 設定檔（可參考 `velo.config.json.example`）
 echo 2. 建立 `Posts` 目錄並放置 Markdown 檔案
 echo 3. 執行程式：
 if "%platform_name:~0,7%"=="Windows" (
