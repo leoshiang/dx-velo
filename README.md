@@ -47,23 +47,26 @@
 #### 編譯步驟
 
 **Clone 專案：**
-```
-bash git clone <repository-url> cd Velo
+```bash
+git clone https://github.com/leoshiang/dx-velo.git
+cd Velo
 ```
 
 **開發模式執行：**
-```
-bash dotnet run
+
+```bash
+dotnet run
 ```
 
 **建置 Release 版本：**
-```
-bash dotnet build -c Release
+
+```bash
+dotnet build -c Release
 ```
 
 **發佈特定平台：**
-```
-bash
+
+```bash
 # Windows x64
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 # Linux x64
@@ -77,13 +80,12 @@ dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=
 專案提供自動化發布腳本，可一次建置所有平台版本：
 
 ### Windows 系統
-```
-cmd build-release.bat
+```cmd
+build-release.bat
 ```
 
 ### Linux / macOS 系統
-```
-bash
+```bash
 # 設定執行權限
 chmod +x build-release.sh
 # 執行發布腳本
@@ -92,22 +94,35 @@ chmod +x build-release.sh
 
 ### 發布腳本功能
 
-- ✅ **多平台支援**：Windows (x64/ARM64)、Linux (x64/ARM64)、macOS (x64/ARM64)
-- ✅ **單一執行檔**：使用 `PublishSingleFile` 和 `PublishTrimmed` 最佳化
-- ✅ **日期版本控制**：依日期 (YYYYMMDD) 建立發布目錄
-- ✅ **完整發布包**：包含執行檔、模板、設定範例和說明文件
-- ✅ **自動打包**：產生 ZIP 檔案方便分發
-- ✅ **依賴檢查**：自動檢查 .NET SDK 和必要工具
+- **多平台支援**：Windows (x64/ARM64)、Linux (x64/ARM64)、macOS (x64/ARM64)
+- **單一執行檔**：使用 `PublishSingleFile` 和 `PublishTrimmed` 最佳化
+- **日期版本控制**：依日期 (YYYYMMDD) 建立發布目錄
+- **完整發布包**：包含執行檔、模板、設定範例和說明文件
+- **自動打包**：產生 ZIP 檔案方便分發
+- **依賴檢查**：自動檢查 .NET SDK 和必要工具
 
 ### 發布目錄結構
 ```
-releases/ └── 20241201/ # 發布日期 ├── BUILD_INFO.txt # 建置資訊 ├── Velo-v1.0.0-win-x64.zip # Windows x64 版本 ├── Velo-v1.0.0-win-arm64.zip # Windows ARM64 版本
-├── Velo-v1.0.0-linux-x64.zip # Linux x64 版本 ├── Velo-v1.0.0-linux-arm64.zip # Linux ARM64 版本 ├── Velo-v1.0.0-osx-x64.zip # macOS Intel 版本 └── Velo-v1.0.0-osx-arm64.zip # macOS Apple Silicon 版本
+releases/ 
+└── 20241201/ # 發布日期
+├── BUILD_INFO.txt # 建置資訊
+├── Velo-v1.0.0-win-x64.zip # Windows x64 版本
+├── Velo-v1.0.0-win-arm64.zip # Windows ARM64 版本
+├── Velo-v1.0.0-linux-x64.zip # Linux x64 版本
+├── Velo-v1.0.0-linux-arm64.zip # Linux ARM64 版本
+├── Velo-v1.0.0-osx-x64.zip # macOS Intel 版本
+└── Velo-v1.0.0-osx-arm64.zip # macOS Apple Silicon 版本
 ```
 
 每個 ZIP 檔案包含：
 ```
-Velo-v1.0.0-win-x64/ ├── Velo.exe # 執行檔 (Windows) 或 Velo (Unix) ├── Templates/ # 模板目錄 │ ├── index.html # 首頁模板 │ └── post.html # 文章頁模板 ├── Velo.config.json.example # 設定檔範例 └── README.txt # 使用說明
+Velo-v1.0.0-win-x64/ 
+├── Velo.exe # 執行檔 (Windows) 或 Velo (Unix) 
+├── Templates/ # 模板目錄 │ 
+├── index.html # 首頁模板 │ 
+└── post.html # 文章頁模板 
+├── Velo.config.json.example # 設定檔範例 
+└── README.txt # 使用說明
 ```
 
 ## 設定檔案 (Velo.config.json)
@@ -204,17 +219,9 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
     "HtmlOutputPath": "/var/www/html",
     "TemplatePath": "/home/user/blog/templates",
     "ImageOutputPath": "/var/www/html/assets/images",
-    "SiteTitle": "技術部落格",
-    "SiteDescription": "分享程式設計和技術心得的部落格",
-    "BaseUrl": "https://blog.example.com",
-    "DateFormat": "yyyy-MM-dd",
-    "PostsPerPage": 15,
     "ClearOutputDirectoryOnStart": true,
     "AutoAddYamlHeader": false,
     "AutoSaveModified": false,
-    "EnableSearch": true,
-    "EnableCategories": true,
-    "EnableTags": true
   }
 }
 ```
@@ -226,7 +233,6 @@ Velo 使用 JSON 格式的設定檔來控制生成行為。以下是完整的設
     "HtmlOutputPath": "E:\\Dropbox\\部落格\\輸出",
     "TemplatePath": "E:\\Dropbox\\部落格\\模板", 
     "ImageOutputPath": "E:\\Dropbox\\部落格\\輸出\\images",
-    "SiteTitle": "我的 Dropbox 部落格",
     "AutoSaveModified": true,
     "ClearOutputDirectoryOnStart": false
   }
@@ -323,7 +329,7 @@ tags: ["標籤1", "標籤2"]
 - **智能定位**：返回頂端按鈕根據內容區域智能定位
 - **視覺回饋**：所有互動元素都有適當的視覺回饋
 
-## 🛠️ 開發資訊
+## 開發資訊
 ### 技術堆疊
 - **語言**：C# 13.0
 - **框架**：.NET 9.0
@@ -335,11 +341,11 @@ tags: ["標籤1", "標籤2"]
 ### 專案結構
 ``` 
 Velo/
-├── Models/              # 資料模型
-├── Services/            # 業務邏輯服務
-├── Templates/           # 內建模板
-├── Utils/               # 工具類別
-├── Program.cs           # 程式進入點
+├── Models/             # 資料模型
+├── Services/           # 業務邏輯服務
+├── Templates/          # 內建模板
+├── Utils/              # 工具類別
+├── Program.cs          # 程式進入點
 ├── Velo.csproj         # 專案檔案
 ├── Velo.config.json    # 設定檔
 ├── build-release.bat   # Windows 發布腳本
