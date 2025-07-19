@@ -55,14 +55,47 @@ class Program
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 取得執行檔所在的目錄路徑
+    /// </summary>
+    private static string GetExecutableDirectory()
+    {
+        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        if (string.IsNullOrEmpty(assemblyLocation))
+        {
+            // 在某些情況下（如 PublishSingleFile），Assembly.Location 可能為空
+            // 這時使用 AppContext.BaseDirectory
+            return AppContext.BaseDirectory;
+        }
+
+        return Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
+    }
+
     static async Task Main(string[] args)
     {
         Console.WriteLine("Velo Markdown 轉換器啟動");
         Console.WriteLine("================================");
 
-        // 建立設定
+        // 取得執行檔所在目錄
+        var executableDirectory = GetExecutableDirectory();
+        var configFilePath = Path.Combine(executableDirectory, "Velo.config.json");
+
+        Console.WriteLine($"執行檔目錄: {executableDirectory}");
+        Console.WriteLine($"設定檔路徑: {configFilePath}");
+        Console.WriteLine();
+
+        // 檢查設定檔是否存在
+        if (!File.Exists(configFilePath))
+        {
+            Console.WriteLine("錯誤: 找不到設定檔 Velo.config.json");
+            Console.WriteLine($"請確保設定檔存在於執行檔目錄中: {executableDirectory}");
+            Console.WriteLine("您可以參考 Velo.config.json.example 建立設定檔");
+            Environment.Exit(1);
+        }
+
+        // 建立設定 - 使用執行檔所在目錄作為基準路徑
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(executableDirectory)
             .AddJsonFile("Velo.config.json", optional: false, reloadOnChange: true)
             .Build();
 
@@ -73,8 +106,8 @@ class Program
                 // 清除預設的設定來源
                 config.Sources.Clear();
 
-                // 只加載我們自訂的設定檔
-                config.SetBasePath(Directory.GetCurrentDirectory())
+                // 只加載我們自訂的設定檔 - 使用執行檔目錄
+                config.SetBasePath(executableDirectory)
                     .AddJsonFile("Velo.config.json", optional: false, reloadOnChange: true);
             })
             .ConfigureServices((context, services) =>
@@ -114,6 +147,13 @@ class Program
             var templatePath = configuration["BlogSettings:TemplatePath"];
             var clearOutputDirectory = configuration.GetValue<bool>("BlogSettings:ClearOutputDirectoryOnStart", false);
 
+            // 解析相對路徑 - 以執行檔目錄為基準
+            contentPath = ResolveRelativePath(contentPath, executableDirectory);
+            outputPath = ResolveRelativePath(outputPath, executableDirectory);
+            imagePath = ResolveRelativePath(imagePath, executableDirectory);
+            templatePath = ResolveRelativePath(templatePath, executableDirectory);
+
+            Console.WriteLine($"當前工作目錄: {Directory.GetCurrentDirectory()}");
             Console.WriteLine($"內容目錄: {contentPath}");
             Console.WriteLine($"HTML 輸出目錄: {outputPath}");
             Console.WriteLine($"圖片輸出目錄: {imagePath}");
@@ -133,6 +173,7 @@ class Program
             if (!Directory.Exists(contentPath))
             {
                 Console.WriteLine($"錯誤: 內容目錄不存在: {contentPath}");
+                Console.WriteLine($"請建立目錄或修改設定檔中的 BlogContentPath");
                 Environment.Exit(1);
             }
 
@@ -176,8 +217,8 @@ class Program
         {
             Console.WriteLine();
             Console.WriteLine("錯誤: 找不到設定檔 Velo.config.json");
-            Console.WriteLine("請確保 Velo.config.json 檔案存在於程式目錄中");
-            Console.WriteLine("您可以參考 Velo.config.example.json 建立設定檔");
+            Console.WriteLine($"請確保 Velo.config.json 檔案存在於執行檔目錄中: {executableDirectory}");
+            Console.WriteLine("您可以參考 Velo.config.json.example 建立設定檔");
             Environment.Exit(1);
         }
         catch (Exception ex)
@@ -195,6 +236,7 @@ class Program
                 Console.WriteLine("- 確保 JSON 格式正確");
                 Console.WriteLine("- 確保所有必要的設定項目存在");
                 Console.WriteLine("- 確保路徑設定正確且可存取");
+                Console.WriteLine($"- 設定檔位置: {configFilePath}");
             }
 
             Environment.Exit(1);
@@ -202,5 +244,24 @@ class Program
 
         Console.WriteLine();
         Console.WriteLine("程式執行完畢");
+    }
+
+    /// <summary>
+    /// 解析相對路徑，以執行檔目錄為基準
+    /// </summary>
+    /// <param name="path">原始路徑</param>
+    /// <param name="basePath">基準路徑（執行檔目錄）</param>
+    /// <returns>解析後的絕對路徑</returns>
+    private static string? ResolveRelativePath(string? path, string basePath)
+    {
+        if (string.IsNullOrEmpty(path))
+            return path;
+
+        // 如果已經是絕對路徑，直接返回
+        if (Path.IsPathRooted(path))
+            return path;
+
+        // 相對路徑，以執行檔目錄為基準
+        return Path.GetFullPath(Path.Combine(basePath, path));
     }
 }
