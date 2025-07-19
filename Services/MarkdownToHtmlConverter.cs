@@ -1399,8 +1399,11 @@ public class MarkdownToHtmlConverter(
     {
         try
         {
+            // 複製字典快照以避免併發修改錯誤
+            var placeholders = _mermaidPlaceholders.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
             // 將占位符替換回 Mermaid HTML
-            foreach (var kvp in _mermaidPlaceholders)
+            foreach (var kvp in placeholders)
             {
                 // 占位符可能被包裝在 <p> 標籤中，需要移除
                 html = html.Replace($"<p>{kvp.Key}</p>", kvp.Value);
