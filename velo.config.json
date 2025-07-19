@@ -8,9 +8,9 @@
   },
   "BlogContentPath": "E:\\Dropbox\\部落格",
   "BlogSettings": {
-    "HtmlOutputPath": "E:\\Dropbox\\部落格輸出",
+    "HtmlOutputPath": "E:\\部落格輸出",
     "TemplatePath": ".\\templates\\default",
-    "ImageOutputPath": "E:\\Dropbox\\部落格輸出\\images",
+    "ImageOutputPath": "E:\\部落格輸出\\images",
     "ClearOutputDirectoryOnStart": true,
     "AutoAddYamlHeader": true,
     "AutoSaveModified": true

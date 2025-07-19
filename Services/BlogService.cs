@@ -237,7 +237,6 @@ draft: false
         return categories;
     }
 
-
     private string GenerateSlug(string title)
     {
         if (string.IsNullOrEmpty(title))

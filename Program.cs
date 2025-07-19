@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.CommandLine; // 引入 System.CommandLine
+using System.CommandLine.Parsing; // 引入 System.CommandLine.Parsing
 using Velo.Services;
 
 namespace Velo;
@@ -71,181 +73,6 @@ class Program
         return Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
     }
 
-    static async Task Main(string[] args)
-    {
-        Console.WriteLine("Velo Markdown 轉換器啟動");
-        Console.WriteLine("================================");
-
-        // 取得執行檔所在目錄
-        var executableDirectory = GetExecutableDirectory();
-        var configFilePath = Path.Combine(executableDirectory, "velo.config.json");
-
-        Console.WriteLine($"執行檔目錄: {executableDirectory}");
-        Console.WriteLine($"設定檔路徑: {configFilePath}");
-        Console.WriteLine();
-
-        // 檢查設定檔是否存在
-        if (!File.Exists(configFilePath))
-        {
-            Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
-            Console.WriteLine($"請確保設定檔存在於執行檔目錄中: {executableDirectory}");
-            Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
-            Environment.Exit(1);
-        }
-
-        // 建立設定 - 使用執行檔所在目錄作為基準路徑
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(executableDirectory)
-            .AddJsonFile("velo.config.json", optional: false, reloadOnChange: true)
-            .Build();
-
-        // 建立主機設定
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureAppConfiguration((context, config) =>
-            {
-                // 清除預設的設定來源
-                config.Sources.Clear();
-
-                // 只加載我們自訂的設定檔 - 使用執行檔目錄
-                config.SetBasePath(executableDirectory)
-                    .AddJsonFile("velo.config.json", optional: false, reloadOnChange: true);
-            })
-            .ConfigureServices((context, services) =>
-            {
-                // 移除預設的 appsettings.json 設定
-                services.Configure<ConsoleLifetimeOptions>(options => { options.SuppressStatusMessages = true; });
-
-                // 註冊設定
-                services.AddSingleton<IConfiguration>(configuration);
-
-                // 註冊服務
-                services.AddScoped<IBlogService, BlogService>();
-                services.AddScoped<ITemplateService, TemplateService>();
-                services.AddScoped<IMarkdownToHtmlService, MarkdownToHtmlConverter>();
-                services.AddScoped<ConverterService>();
-            })
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
-            })
-            .UseConsoleLifetime()
-            .Build();
-
-        // 取得服務和 logger
-        using var scope = host.Services.CreateScope();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        var converterService = scope.ServiceProvider.GetRequiredService<ConverterService>();
-
-        try
-        {
-            // 顯示設定資訊
-            var contentPath = configuration["BlogContentPath"];
-            var outputPath = configuration["BlogSettings:HtmlOutputPath"];
-            var imagePath = configuration["BlogSettings:ImageOutputPath"];
-            var templatePath = configuration["BlogSettings:TemplatePath"];
-            var clearOutputDirectory = configuration.GetValue<bool>("BlogSettings:ClearOutputDirectoryOnStart", false);
-
-            // 解析相對路徑 - 以執行檔目錄為基準
-            contentPath = ResolveRelativePath(contentPath, executableDirectory);
-            outputPath = ResolveRelativePath(outputPath, executableDirectory);
-            imagePath = ResolveRelativePath(imagePath, executableDirectory);
-            templatePath = ResolveRelativePath(templatePath, executableDirectory);
-
-            Console.WriteLine($"當前工作目錄: {Directory.GetCurrentDirectory()}");
-            Console.WriteLine($"內容目錄: {contentPath}");
-            Console.WriteLine($"HTML 輸出目錄: {outputPath}");
-            Console.WriteLine($"圖片輸出目錄: {imagePath}");
-            Console.WriteLine($"模板目錄: {templatePath}");
-            Console.WriteLine($"清除輸出目錄: {(clearOutputDirectory ? "是" : "否")}");
-            Console.WriteLine();
-
-            // 檢查設定檔路徑
-            if (string.IsNullOrEmpty(contentPath) || string.IsNullOrEmpty(outputPath))
-            {
-                Console.WriteLine("錯誤: 請檢查 velo.config.json 設定檔中的路徑設定");
-                Console.WriteLine("請確保 BlogContentPath 和 BlogSettings:HtmlOutputPath 已正確設定");
-                Environment.Exit(1);
-            }
-
-            // 檢查目錄是否存在
-            if (!Directory.Exists(contentPath))
-            {
-                Console.WriteLine($"錯誤: 內容目錄不存在: {contentPath}");
-                Console.WriteLine($"請建立目錄或修改設定檔中的 BlogContentPath");
-                Environment.Exit(1);
-            }
-
-            // 處理輸出目錄
-            if (clearOutputDirectory && Directory.Exists(outputPath))
-            {
-                Console.WriteLine($"正在清除輸出目錄: {outputPath}");
-                logger.LogInformation("開始清除輸出目錄: {OutputPath}", outputPath);
-
-                await ClearOutputDirectoryAsync(outputPath, logger);
-
-                Console.WriteLine("輸出目錄已清除");
-                logger.LogInformation("輸出目錄清除完成");
-            }
-
-            // 確保輸出目錄存在
-            if (!Directory.Exists(outputPath))
-            {
-                Console.WriteLine($"建立輸出目錄: {outputPath}");
-                Directory.CreateDirectory(outputPath);
-            }
-
-            // 確保圖片輸出目錄存在
-            if (!string.IsNullOrEmpty(imagePath) && !Directory.Exists(imagePath))
-            {
-                Console.WriteLine($"建立圖片輸出目錄: {imagePath}");
-                Directory.CreateDirectory(imagePath);
-            }
-
-            logger.LogInformation("開始執行轉換作業...");
-
-            // 執行轉換
-            await converterService.ConvertAllPostsAsync();
-
-            logger.LogInformation("轉換作業已完成！");
-            Console.WriteLine();
-            Console.WriteLine("轉換作業已完成！");
-            Console.WriteLine($"請查看輸出目錄: {outputPath}");
-        }
-        catch (FileNotFoundException ex) when (ex.Message.Contains("velo.config.json"))
-        {
-            Console.WriteLine();
-            Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
-            Console.WriteLine($"請確保 velo.config.json 檔案存在於執行檔目錄中: {executableDirectory}");
-            Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
-            Environment.Exit(1);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "轉換過程中發生錯誤");
-            Console.WriteLine();
-            Console.WriteLine("轉換過程中發生錯誤:");
-            Console.WriteLine(ex.Message);
-
-            // 如果是設定相關的錯誤，提供更詳細的說明
-            if (ex.Message.Contains("configuration") || ex.Message.Contains("設定"))
-            {
-                Console.WriteLine();
-                Console.WriteLine("請檢查 velo.config.json 設定檔:");
-                Console.WriteLine("- 確保 JSON 格式正確");
-                Console.WriteLine("- 確保所有必要的設定項目存在");
-                Console.WriteLine("- 確保路徑設定正確且可存取");
-                Console.WriteLine($"- 設定檔位置: {configFilePath}");
-            }
-
-            Environment.Exit(1);
-        }
-
-        Console.WriteLine();
-        Console.WriteLine("程式執行完畢");
-    }
-
     /// <summary>
     /// 解析相對路徑，以執行檔目錄為基準
     /// </summary>
@@ -263,5 +90,247 @@ class Program
 
         // 相對路徑，以執行檔目錄為基準
         return Path.GetFullPath(Path.Combine(basePath, path));
+    }
+
+    static async Task Main(string[] args)
+    {
+        // 1. 定義命令列選項
+        var contentPathOption = new Option<string?>(
+            new string[] { "--content-path", "-c" },
+            description: "Markdown 文章檔案存放目錄"
+        );
+        var outputPathOption = new Option<string?>(
+            new string[] { "--output-path", "-o" },
+            description: "生成的 HTML 檔案輸出目錄"
+        );
+        var templatePathOption = new Option<string?>(
+            new string[] { "--template-path", "-t" },
+            description: "模板檔案存放目錄"
+        );
+        var imagePathOption = new Option<string?>(
+            new string[] { "--image-path", "-i" },
+            description: "圖片資源輸出目錄"
+        );
+        var clearOutputOption = new Option<bool?>(
+            new string[] { "--clear-output", "-C" }, // 大寫 C 以區分 content
+            description: "生成前是否清空輸出目錄"
+        );
+        var autoYamlOption = new Option<bool?>(
+            new string[] { "--auto-yaml", "-a" },
+            description: "自動為缺少 Front Matter 的檔案添加"
+        );
+        var autoSaveModifiedOption = new Option<bool?>(
+            new string[] { "--save-modified", "-s" },
+            description: "自動儲存修改"
+        );
+
+        // 2. 建立根命令並加入選項
+        var rootCommand = new RootCommand("Velo Markdown 轉換器：一個簡單但功能豐富的靜態部落格生成器。")
+        {
+            contentPathOption,
+            outputPathOption,
+            templatePathOption,
+            imagePathOption,
+            clearOutputOption,
+            autoYamlOption,
+            autoSaveModifiedOption
+        };
+
+        // 3. 設定命令處理器
+        rootCommand.SetHandler(
+            async (contentPath, outputPath, templatePath, imagePath, clearOutput, autoYaml, autoSave) =>
+            {
+                var executableDirectory = GetExecutableDirectory();
+                var configFilePath = Path.Combine(executableDirectory, "velo.config.json");
+
+                Console.WriteLine("Velo Markdown 轉換器啟動");
+                Console.WriteLine("================================");
+                Console.WriteLine($"執行檔目錄: {executableDirectory}");
+                Console.WriteLine($"設定檔路徑: {configFilePath}");
+                Console.WriteLine();
+
+                // 檢查設定檔是否存在
+                if (!File.Exists(configFilePath))
+                {
+                    Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
+                    Console.WriteLine($"請確保設定檔存在於執行檔目錄中: {executableDirectory}");
+                    Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
+                    Environment.Exit(1);
+                }
+
+                // 建立主機設定
+                var host = Host.CreateDefaultBuilder()
+                    .ConfigureAppConfiguration((context, config) =>
+                    {
+                        // 清除預設的設定來源，以便完全控制
+                        config.Sources.Clear();
+
+                        // 首先載入 velo.config.json
+                        config.SetBasePath(executableDirectory)
+                            .AddJsonFile("velo.config.json", optional: false, reloadOnChange: true);
+
+                        // 建立一個字典來儲存從命令列解析出的參數，它們將覆寫設定檔中的值
+                        var commandLineOverrides = new Dictionary<string, string>();
+
+                        // 如果命令列選項有提供值（即不為 null），則加入到覆寫字典中
+                        if (contentPath != null) commandLineOverrides["BlogContentPath"] = contentPath;
+                        if (outputPath != null) commandLineOverrides["BlogSettings:HtmlOutputPath"] = outputPath;
+                        if (templatePath != null) commandLineOverrides["BlogSettings:TemplatePath"] = templatePath;
+                        if (imagePath != null) commandLineOverrides["BlogSettings:ImageOutputPath"] = imagePath;
+                        // 對於 bool? 型別，檢查 HasValue 以判斷是否明確提供了參數
+                        if (clearOutput.HasValue)
+                            commandLineOverrides["BlogSettings:ClearOutputDirectoryOnStart"] =
+                                clearOutput.Value.ToString();
+                        if (autoYaml.HasValue)
+                            commandLineOverrides["BlogSettings:AutoAddYamlHeader"] = autoYaml.Value.ToString();
+                        if (autoSave.HasValue)
+                            commandLineOverrides["BlogSettings:AutoSaveModified"] = autoSave.Value.ToString();
+
+                        // 將命令列參數作為 In-Memory Collection 加入，確保其優先級最高
+                        if (commandLineOverrides.Any())
+                        {
+                            config.AddInMemoryCollection(commandLineOverrides);
+                        }
+                    })
+                    .ConfigureServices((context, services) =>
+                    {
+                        services.Configure<ConsoleLifetimeOptions>(options =>
+                        {
+                            options.SuppressStatusMessages = true;
+                        });
+                        // 使用由主機建立的 IConfiguration 實例
+                        services.AddSingleton<IConfiguration>(context.Configuration);
+                        services.AddScoped<IBlogService, BlogService>();
+                        services.AddScoped<ITemplateService, TemplateService>();
+                        services.AddScoped<IMarkdownToHtmlService, MarkdownToHtmlConverter>();
+                        services.AddScoped<ConverterService>();
+                    })
+                    .ConfigureLogging(logging =>
+                    {
+                        logging.ClearProviders();
+                        logging.AddConsole();
+                        logging.SetMinimumLevel(LogLevel.Information);
+                    })
+                    .UseConsoleLifetime()
+                    .Build();
+
+                // 取得服務和 logger
+                using var scope = host.Services.CreateScope();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                var converterService = scope.ServiceProvider.GetRequiredService<ConverterService>();
+                var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>(); // 取得最終的配置
+
+                try
+                {
+                    // 顯示設定資訊
+                    var contentPathConfig = configuration["BlogContentPath"];
+                    var outputPathConfig = configuration["BlogSettings:HtmlOutputPath"];
+                    var imagePathConfig = configuration["BlogSettings:ImageOutputPath"];
+                    var templatePathConfig = configuration["BlogSettings:TemplatePath"];
+                    var clearOutputDirectory =
+                        configuration.GetValue<bool>("BlogSettings:ClearOutputDirectoryOnStart", false);
+
+                    // 解析相對路徑 - 以執行檔目錄為基準
+                    contentPathConfig = ResolveRelativePath(contentPathConfig, executableDirectory);
+                    outputPathConfig = ResolveRelativePath(outputPathConfig, executableDirectory);
+                    imagePathConfig = ResolveRelativePath(imagePathConfig, executableDirectory);
+                    templatePathConfig = ResolveRelativePath(templatePathConfig, executableDirectory);
+
+                    Console.WriteLine($"當前工作目錄: {Directory.GetCurrentDirectory()}");
+                    Console.WriteLine($"內容目錄: {contentPathConfig}");
+                    Console.WriteLine($"HTML 輸出目錄: {outputPathConfig}");
+                    Console.WriteLine($"圖片輸出目錄: {imagePathConfig}");
+                    Console.WriteLine($"模板目錄: {templatePathConfig}");
+                    Console.WriteLine($"清除輸出目錄: {(clearOutputDirectory ? "是" : "否")}");
+                    Console.WriteLine();
+
+                    // 檢查設定檔路徑
+                    if (string.IsNullOrEmpty(contentPathConfig) || string.IsNullOrEmpty(outputPathConfig))
+                    {
+                        Console.WriteLine("錯誤: 請檢查 velo.config.json 設定檔中的路徑設定");
+                        Console.WriteLine("請確保 BlogContentPath 和 BlogSettings:HtmlOutputPath 已正確設定");
+                        Environment.Exit(1);
+                    }
+
+                    // 檢查目錄是否存在
+                    if (!Directory.Exists(contentPathConfig))
+                    {
+                        Console.WriteLine($"錯誤: 內容目錄不存在: {contentPathConfig}");
+                        Console.WriteLine($"請建立目錄或修改設定檔中的 BlogContentPath");
+                        Environment.Exit(1);
+                    }
+
+                    // 處理輸出目錄
+                    if (clearOutputDirectory && Directory.Exists(outputPathConfig))
+                    {
+                        Console.WriteLine($"正在清除輸出目錄: {outputPathConfig}");
+                        logger.LogInformation("開始清除輸出目錄: {OutputPath}", outputPathConfig);
+
+                        await ClearOutputDirectoryAsync(outputPathConfig, logger);
+
+                        Console.WriteLine("輸出目錄已清除");
+                        logger.LogInformation("輸出目錄清除完成");
+                    }
+
+                    // 確保輸出目錄存在
+                    if (!Directory.Exists(outputPathConfig))
+                    {
+                        Console.WriteLine($"建立輸出目錄: {outputPathConfig}");
+                        Directory.CreateDirectory(outputPathConfig);
+                    }
+
+                    // 確保圖片輸出目錄存在
+                    if (!string.IsNullOrEmpty(imagePathConfig) && !Directory.Exists(imagePathConfig))
+                    {
+                        Console.WriteLine($"建立圖片輸出目錄: {imagePathConfig}");
+                        Directory.CreateDirectory(imagePathConfig);
+                    }
+
+                    logger.LogInformation("開始執行轉換作業...");
+
+                    // 執行轉換
+                    await converterService.ConvertAllPostsAsync();
+
+                    logger.LogInformation("轉換作業已完成！");
+                    Console.WriteLine();
+                    Console.WriteLine("轉換作業已完成！");
+                    Console.WriteLine($"請查看輸出目錄: {outputPathConfig}");
+                }
+                catch (FileNotFoundException ex) when (ex.Message.Contains("velo.config.json"))
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("錯誤: 找不到設定檔 velo.config.json");
+                    Console.WriteLine($"請確保 velo.config.json 檔案存在於執行檔目錄中: {executableDirectory}");
+                    Console.WriteLine("您可以參考 velo.config.json.example 建立設定檔");
+                    Environment.Exit(1);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "轉換過程中發生錯誤");
+                    Console.WriteLine();
+                    Console.WriteLine("轉換過程中發生錯誤:");
+                    Console.WriteLine(ex.Message);
+
+                    // 如果是設定相關的錯誤，提供更詳細的說明
+                    if (ex.Message.Contains("configuration") || ex.Message.Contains("設定"))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("請檢查 velo.config.json 設定檔:");
+                        Console.WriteLine("- 確保 JSON 格式正確");
+                        Console.WriteLine("- 確保所有必要的設定項目存在");
+                        Console.WriteLine("- 確保路徑設定正確且可存取");
+                        Console.WriteLine($"- 設定檔位置: {configFilePath}");
+                    }
+
+                    Environment.Exit(1);
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("程式執行完畢");
+            }, contentPathOption, outputPathOption, templatePathOption, imagePathOption, clearOutputOption,
+            autoYamlOption, autoSaveModifiedOption);
+
+        // 執行命令列解析
+        await rootCommand.InvokeAsync(args);
     }
 }
