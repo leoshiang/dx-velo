@@ -2,363 +2,331 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0"
-          name="viewport">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>{{Title}}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+
     <style>
-        /* 基礎排版 */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f8f9fa;
+        :root {
+            --primary-color: #3a7bd5;
+            --secondary-color: #3a91bd;
+            --background-color: #f4f7f9;
+            --card-background: #ffffff;
+            --text-color: #333;
+            --heading-color: #2c3e50;
+            --subtle-text-color: #6c757d;
+            --border-color: #e9ecef;
+            --accent-color: #00d2ff;
+            --code-bg-color: #2d2d2d;
+            --font-family-sans-serif: 'Lexend', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --border-radius: 12px;
+            --shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            --transition-speed: 0.3s;
         }
 
-        /* 兩欄網格：左內容、右側欄 */
+        body {
+            font-family: var(--font-family-sans-serif);
+            line-height: 1.8;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr auto; /* 改為 auto，讓側邊欄自動調整寬度 */
+            grid-template-columns: 1fr 300px;
             gap: 40px;
         }
 
-        /* 文章主要內容 */
         .main-content {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
-            overflow-wrap: break-word; /* 強制長文字換行 */
-            word-wrap: break-word; /* 相容性 */
-            min-width: 0; /* 允許 flex/grid 項目縮小 */
+            background: var(--card-background);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            min-width: 0;
         }
 
-        /* 右側欄 */
         .sidebar {
-            background: white;
-            padding: 0; /* 移除整體 padding */
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
             position: sticky;
             top: 20px;
             max-height: calc(100vh - 40px);
             display: flex;
             flex-direction: column;
-            min-width: 250px; /* 設定最小寬度 */
-            max-width: 400px; /* 設定最大寬度，避免太寬 */
-            width: max-content; /* 根據內容調整寬度 */
         }
 
-        /* 返回首頁按鈕 - 固定在頂部 */
+        .home-link-wrapper {
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
         .home-link {
-            font-size: .9rem;
-            background: #28a745;
-            color: #fff;
-            padding: 12px 20px; /* 調整 padding */
+            display: block;
+            font-size: 1rem;
+            font-weight: 600;
+            background-image: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 15px 20px;
             text-decoration: none;
             text-align: center;
-            border-radius: 8px 8px 0 0; /* 只有上方圓角 */
-            flex-shrink: 0; /* 防止收縮 */
-            margin: 0; /* 移除外邊距 */
-            white-space: nowrap; /* 防止文字折行 */
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(58, 123, 213, 0.3);
+            transition: all var(--transition-speed) ease;
         }
 
         .home-link:hover {
-            background: #218838;
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(58, 123, 213, 0.4);
         }
 
-        /* TOC 容器 - 可滾動區域 */
-        .toc-container {
-            flex: 1; /* 佔用剩餘空間 */
-            overflow-y: auto; /* 允許滾動 */
-            padding: 20px; /* 恢復內邊距 */
-            min-height: 0; /* 允許收縮 */
+        .toc-wrapper {
+            background: var(--card-background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 25px;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* TOC 樣式 */
         .toc-title {
-            margin: 0 0 15px 0; /* 調整上邊距 */
-            font-size: 1.1rem;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 6px;
-            color: #333;
+            margin: 0 0 20px 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--heading-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
         }
 
-        /* TOC 樣式調整 */
+        .toc-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
         .toc-list {
             list-style: none;
             padding-left: 0;
-            font-size: .85rem;
+            font-size: 0.9rem;
         }
 
         .toc-list li {
-            margin-bottom: 6px;
-            overflow: hidden; /* 如果內容太長，隱藏超出部分 */
-            text-overflow: ellipsis; /* 顯示省略號 */
+            margin-bottom: 8px;
         }
 
         .toc-list a {
             text-decoration: none;
-            color: #007bff;
+            color: var(--subtle-text-color);
             display: block;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap; /* 防止 TOC 項目折行 */
+            transition: all var(--transition-speed) ease;
+            padding: 5px;
+            border-radius: 6px;
         }
 
         .toc-list a:hover {
-            text-decoration: underline;
+            color: var(--primary-color);
+            background-color: #f1f5f8;
         }
 
-        /* 自訂滾動條樣式 */
-        .toc-container::-webkit-scrollbar {
-            width: 6px;
-        }
+        .toc-container::-webkit-scrollbar { width: 6px; }
+        .toc-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+        .toc-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .toc-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
-        .toc-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        .toc-container::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
-        }
-
-        .toc-container::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-
-        /* 文章標題與段落 */
         .article-title {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #212529;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--heading-color);
             margin-bottom: 15px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-            word-wrap: break-word;
+            line-height: 1.3;
         }
 
         .article-meta {
-            color: #6c757d;
-            font-size: .9rem;
+            color: var(--subtle-text-color);
+            font-size: 0.9rem;
             margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        /* 文章內容區域防止溢出 */
-        .article-content {
-            overflow-x: auto; /* 水平溢出時顯示滾動條 */
-            max-width: 100%; /* 不超過父容器寬度 */
+        .tag, .category {
+            color: white;
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: transform var(--transition-speed) ease;
+        }
+        .tag { background-image: linear-gradient(to right, #ff9a44, #ff6b6b); }
+        .category { background-image: linear-gradient(to right, #28a745, #20c997); }
+
+        .article-content h1, .article-content h2, .article-content h3, .article-content h4 {
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: var(--heading-color);
+            line-height: 1.4;
+            scroll-margin-top: 80px;
+        }
+        .article-content h1 { font-size: 2rem; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        .article-content h2 { font-size: 1.6rem; }
+        .article-content h3 { font-size: 1.3rem; }
+
+        .article-content p, .article-content ul, .article-content ol {
+            margin-bottom: 20px;
+            font-size: 1rem;
         }
 
-        .article-content h1,
-        .article-content h2,
-        .article-content h3,
-        .article-content h4,
-        .article-content h5,
-        .article-content h6 {
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-weight: bold;
-            line-height: 1.3;
-            scroll-margin-top: 80px; /* 為錨點留空 */
-        }
-
-        .article-content p {
-            margin-bottom: 15px;
-            line-height: 1.8;
-        }
+        .article-content ul, .article-content ol { padding-left: 25px; }
+        .article-content li { margin-bottom: 10px; }
 
         .article-content img {
             max-width: 100%;
             height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, .1);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin: 20px 0;
         }
 
-        /* 確保各種內容元素不會撐破容器 */
-        .article-content pre,
-        .article-content code,
-        .article-content table,
-        .article-content iframe,
-        .article-content video {
-            line-height: 1.15;
-            font-family: Consolas, Geneva, sans-serif;
-            max-width: 100%;
-            overflow-x: auto;
+        blockquote {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f1f5f8;
+            border-left: 5px solid var(--primary-color);
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+            color: #495057;
+        }
+        blockquote p:last-child { margin-bottom: 0; }
+
+        .code-wrapper {
+            position: relative;
+            margin: 20px 0;
         }
 
-        /* 程式碼區塊特殊處理 */
         .article-content pre {
-            line-height: 1.15;
-            white-space: pre-wrap; /* 保持格式但允許換行 */
-            word-wrap: break-word;
+            border-radius: var(--border-radius);
+            padding: 20px;
             overflow-x: auto;
-            background: #f8f9fa;
-            border-radius: 5px;
-            border: 1px solid #e9ecef;
+            box-shadow: var(--shadow);
         }
 
-        /* 表格響應式處理 */
+        .copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: all var(--transition-speed) ease;
+            backdrop-filter: blur(5px);
+        }
+        .copy-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
+
         .article-content table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 25px 0;
             font-size: 0.9rem;
+            box-shadow: var(--shadow);
+            border-radius: var(--border-radius);
+            overflow: hidden;
             display: block;
-            overflow-x: auto;
-            white-space: nowrap;
         }
-
-        .article-content th,
-        .article-content td {
-            padding: 8px 12px;
-            text-align: left;
-            border-bottom: 1px solid #e9ecef;
-            word-wrap: break-word;
-        }
-
-        .article-content thead,
-        .article-content tbody,
-        .article-content tr {
+        .article-content thead, .article-content tbody, .article-content tr {
             display: table;
             width: 100%;
             table-layout: fixed;
         }
 
-        .article-content thead {
-            width: calc(100% - 1em);
+        .article-content th, .article-content td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        .tag, .category {
-            background: orange;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 12px;
-            margin-right: 5px;
-            font-size: 0.6rem;
+        .article-content th {
+            background-color: #f8f9fa;
+            font-weight: 600;
         }
 
-        .category {
-            font-size: 0.6rem;
-            background: #28a745;
+        .article-content tbody tr:last-child th,
+        .article-content tbody tr:last-child td {
+            border-bottom: none;
         }
 
-        /* ======================= */
-        /* 返回頂端浮動按鈕           */
-        /* ======================= */
         .back-to-top {
-            position: fixed; /* 以 viewport 為基準，待會用 JS 調整 right */
+            position: fixed;
             bottom: 30px;
-            right: 30px; /* 初始值，JS 會覆蓋 */
-            width: 48px;
-            height: 48px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
             border: none;
             border-radius: 50%;
-            background: #007bff;
-            color: #fff;
-            font-size: 1.2rem;
+            background-image: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            font-size: 1.5rem;
             cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, .2);
-            display: none; /* 預設隱藏 */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: none;
             align-items: center;
             justify-content: center;
-            transition: opacity .3s ease, transform .3s ease;
-            z-index: 999;
+            transition: all var(--transition-speed) ease;
+            z-index: 1000;
         }
-
-        .back-to-top.show {
-            display: flex;
-            opacity: 1;
-            transform: translateY(0);
+        .back-to-top:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
         }
+        .back-to-top.show { display: flex; }
 
-        .back-to-top.hide {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        /* 亦可作用於 post.html 的 .post-content 區域 */
-        blockquote {
-            margin: 1rem 0;
-            padding: .75rem 1rem;
-            background: #ffecec; /* 淺紅底色 */
-            border-left: 6px solid #b71c1c; /* 深紅窄條 */
-            border-radius: 4px;
-            color: #555;
-        }
-
-        /* 內部文字加強可讀性（可選） */
-        blockquote p {
-            margin: 0;
-        }
-
-        /* <= 768px：改用單欄排版，文章區域可佔滿寬度 */
-        @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr; /* 只剩一欄 */
-            }
-
-            /* 讓側欄排在文章前，並取消 sticky 與高度限制 */
+        @media (max-width: 992px) {
+            .container { grid-template-columns: 1fr; }
             .sidebar {
-                order: -1; /* 排在最前 */
+                order: -1;
                 position: static;
                 max-height: none;
-                margin-bottom: 20px; /* 與文章留間距 */
+                margin-bottom: 30px;
+                flex-direction: column;
             }
-
-            .toc-container {
-                overflow: visible; /* 移動設備上不滾動 */
+            .toc-wrapper {
+                max-height: 300px;
             }
         }
+
+        @media (max-width: 768px) {
+            body { padding: 15px; }
+            .main-content { padding: 25px; }
+            .article-title { font-size: 2rem; }
+            .article-content table { white-space: normal; }
+        }
     </style>
-    <!-- Mermaid.js 圖表支援 -->
+
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-
-    <!-- MathJax 數學公式支援 -->
-    <script id="MathJax-script"
-            async
-            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-    </script>
-    <!-- Highlight.js 語法高亮 -->
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-
-    <style>
-        /* ───────── 程式碼複製按鈕 ───────── */
-        .code-wrapper { /* 讓 <pre> 可以絕對定位子元素 */
-            position: relative;
-        }
-
-        .copy-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            padding: 4px 10px;
-            font-size: .75rem;
-            color: #fff;
-            background: #28a745;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            opacity: .8;
-            transition: opacity .2s ease;
-            user-select: none;
-        }
-
-        .copy-btn:hover {
-            opacity: 1;
-        }
-    </style>
 </head>
 <body>
 <div class="container">
-    <!-- 左欄：文章內容 -->
     <article class="main-content">
+        <h1 class="article-title">{{Title}}</h1>
         <div class="article-meta">
             <span class="date">{{PublishedDate}}</span>
             {{#if Categories}}
@@ -371,134 +339,76 @@
         <div class="article-content">
             {{{Content}}}
         </div>
-        <button aria-label="返回頂端"
-                class="back-to-top"
-                id="backToTop">↑
-        </button>
+        <button aria-label="返回頂端" class="back-to-top" id="backToTop">↑</button>
     </article>
 
-    <!-- 右欄：返回首頁＋目錄 -->
     <aside class="sidebar">
-        <!-- 固定在頂部的返回首頁按鈕 -->
-        <a class="home-link"
-           href="index.html">返回首頁</a>
-
-        <!-- 可滾動的目錄區域 -->
-        <div class="toc-container">
-            <h3 class="toc-title">目錄</h3>
-            <ul class="toc-list"
-                id="toc"></ul>
+        <div class="home-link-wrapper">
+            <a class="home-link" href="index.html">返回部落格首頁</a>
+        </div>
+        <div class="toc-wrapper">
+            <h3 class="toc-title">文章目錄</h3>
+            <div class="toc-container">
+                <ul class="toc-list" id="toc"></ul>
+            </div>
         </div>
     </aside>
 </div>
 
 <script>
-    /* Mermaid 於頁面載入後自動初始化 */
-    mermaid.initialize({startOnLoad: true});
-
     document.addEventListener('DOMContentLoaded', () => {
-        /* 語法高亮 */
+        mermaid.initialize({ startOnLoad: true });
         hljs.highlightAll();
 
-        /* 為每個 <pre><code> 生成複製按鈕 */
         document.querySelectorAll('pre > code').forEach(codeEl => {
-            const pre = codeEl.parentElement;
-            /* 建立包裹元素，確保按鈕能定位 */
             const wrapper = document.createElement('div');
             wrapper.className = 'code-wrapper';
-            pre.replaceWith(wrapper);
+            const pre = codeEl.parentElement;
+            pre.parentNode.insertBefore(wrapper, pre);
             wrapper.appendChild(pre);
 
-            /* 複製按鈕 */
             const btn = document.createElement('button');
             btn.className = 'copy-btn';
             btn.textContent = 'Copy';
             wrapper.appendChild(btn);
 
-            /* 點擊後複製內容 */
             btn.addEventListener('click', async () => {
                 try {
                     await navigator.clipboard.writeText(codeEl.innerText);
                     btn.textContent = 'Copied!';
-                    setTimeout(() => btn.textContent = 'Copy', 1500);
                 } catch {
                     btn.textContent = 'Failed';
-                    setTimeout(() => btn.textContent = 'Copy', 1500);
                 }
+                setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
             });
         });
-    });
 
-    /* 動態產生 TOC */
-    (function () {
         const tocUl = document.getElementById('toc');
-        if (!tocUl) return;
+        if (tocUl) {
+            const headings = document.querySelectorAll('.article-content h1[id], .article-content h2[id], .article-content h3[id]');
+            headings.forEach(h => {
+                const li = document.createElement('li');
+                const level = parseInt(h.tagName.substring(1));
+                li.style.paddingLeft = (level - 1) * 15 + 'px';
+                const a = document.createElement('a');
+                a.href = '#' + h.id;
+                a.textContent = h.textContent;
+                li.appendChild(a);
+                tocUl.appendChild(li);
+            });
+        }
 
-        const headings = document.querySelectorAll('.article-content h1, .article-content h2, .article-content h3');
-        headings.forEach(h => {
-            if (!h.id) {
-                h.id = h.textContent.trim()
-                    .toLowerCase()
-                    .replace(/\\s+/g, '-')
-                    .replace(/[^a-z0-9\\-]/g, '');
-            }
-            const li = document.createElement('li');
-            li.style.marginLeft = (parseInt(h.tagName.substring(1)) - 1) * 10 + 'px';
-
-            const a = document.createElement('a');
-            a.href = '#' + h.id;
-            a.textContent = h.textContent;
-
-            li.appendChild(a);
-            tocUl.appendChild(li);
-        });
-    })();
-
-    /* 返回頂端按鈕邏輯 */
-    (() => {
-        const btn = document.getElementById('backToTop');
-        if (!btn) return;
-
-        /* 捲動顯示 / 隱藏 */
-        const toggleVisibility = () => {
-            if (window.scrollY > 300) {
-                btn.classList.add('show');
-                btn.classList.remove('hide');
-            } else {
-                btn.classList.add('hide');
-                btn.classList.remove('show');
-            }
-        };
-
-        /* 動態計算 right，讓按鈕貼齊 .main-content 右邊 */
-        const adjustPosition = () => {
-            const article = document.querySelector('.main-content');
-            if (!article) return;
-            const rect = article.getBoundingClientRect();
-
-            /*「main-content 右邊」到「視窗右邊」的距離 + 預留 20px */
-            const gap = window.innerWidth - rect.right + 20;
-            const btnWidth = btn.offsetWidth || 48;
-
-            /* 寬螢幕才使用精確定位；窄螢幕改用預設 */
-            if (window.innerWidth > 768 && gap > btnWidth) {
-                btn.style.right = gap + 'px';
-            } else {
-                btn.style.right = '20px';
-            }
-        };
-
-        /* 初始、捲動、縮放時皆執行 */
-        toggleVisibility();
-        adjustPosition();
-        window.addEventListener('scroll', toggleVisibility);
-        window.addEventListener('resize', adjustPosition);
-
-        /* 點擊平滑捲頂 */
-        btn.addEventListener('click', () => {
-            window.scroll({top: 0, behavior: 'smooth'});
-        });
-    })();
+        const backToTopBtn = document.getElementById('backToTop');
+        if (backToTopBtn) {
+            const toggleVisibility = () => {
+                window.scrollY > 300 ? backToTopBtn.classList.add('show') : backToTopBtn.classList.remove('show');
+            };
+            window.addEventListener('scroll', toggleVisibility);
+            backToTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+    });
 </script>
 </body>
 </html>

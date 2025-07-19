@@ -4,80 +4,93 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>LEOSHIANG 的部落格</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #3a7bd5;
+            --secondary-color: #3a91bd;
+            --background-color: #f4f7f9;
+            --card-background: #ffffff;
+            --text-color: #333;
+            --subtle-text-color: #6c757d;
+            --border-color: #e9ecef;
+            --accent-color: #00d2ff;
+            --danger-color: #e74c3c;
+            --font-family-sans-serif: 'Lexend', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --border-radius: 12px;
+            --shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            --transition-speed: 0.3s;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
+            font-family: var(--font-family-sans-serif);
+            line-height: 1.7;
             margin: 0;
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: var(--background-color);
+            color: var(--text-color);
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr auto; /* 改為 auto，讓側邊欄自動調整寬度 */
+            grid-template-columns: 1fr 320px;
             gap: 40px;
         }
 
         .sidebar {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background: var(--card-background);
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
             position: sticky;
             top: 20px;
-            max-height: calc(100vh - 40px); /* 限制最大高度 */
+            max-height: calc(100vh - 40px);
             display: flex;
             flex-direction: column;
-            min-width: 280px;        /* 設定最小寬度 */
-            max-width: 450px;        /* 設定最大寬度 */
-            width: max-content;      /* 根據內容調整寬度 */
         }
 
         .main-content {
-            min-width: 0; /* 允許收縮 */
+            min-width: 0;
         }
 
-        /* 搜尋區域樣式 */
         .search-section {
             margin-bottom: 30px;
-            flex-shrink: 0; /* 防止搜尋區域被壓縮 */
+            flex-shrink: 0;
         }
 
         .search-section h3 {
             margin-top: 0;
-            margin-bottom: 15px;
-            color: #333;
-            font-size: 1.2rem;
-            border-bottom: 2px solid #28a745;
-            padding-bottom: 8px;
+            margin-bottom: 20px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
         }
 
         .search-container {
             position: relative;
-            margin-bottom: 15px;
         }
 
         .search-input {
             width: 100%;
-            min-width: 200px;       /* 設定最小寬度 */
-            padding: 10px 40px 10px 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            transition: border-color 0.3s ease;
+            padding: 12px 45px 12px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all var(--transition-speed) ease;
             box-sizing: border-box;
+            background-color: #f8f9fa;
         }
 
         .search-input:focus {
             outline: none;
-            border-color: #28a745;
-        }
-
-        .search-input::placeholder {
-            color: #6c757d;
+            border-color: var(--primary-color);
+            background-color: var(--card-background);
+            box-shadow: 0 0 0 3px rgba(58, 123, 213, 0.2);
         }
 
         .search-button {
@@ -87,52 +100,43 @@
             transform: translateY(-50%);
             background: none;
             border: none;
-            color: #6c757d;
+            color: var(--subtle-text-color);
             cursor: pointer;
-            font-size: 1rem;
-            padding: 4px;
-            transition: color 0.3s ease;
+            font-size: 1.2rem;
+            padding: 5px;
+            transition: color var(--transition-speed) ease;
         }
-
         .search-button:hover {
-            color: #28a745;
+            color: var(--primary-color);
         }
 
-        .search-results {
-            font-size: 0.8rem;
-            color: #6c757d;
-            display: none;
-            margin-bottom: 10px;
+        .search-results, .clear-search {
+            font-size: 0.85rem;
+            margin-top: 10px;
         }
+        .search-results { display: none; }
+        .search-results.active { display: block; }
 
-        .search-results.active {
-            display: block;
-        }
 
         .clear-search {
-            background: #dc3545;
+            background: var(--danger-color);
             color: white;
             border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
+            padding: 5px 10px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            transition: background-color var(--transition-speed) ease;
             display: none;
         }
-
         .clear-search:hover {
-            background: #c82333;
+            background: #c0392b;
         }
+        .clear-search.active { display: inline-block; }
 
-        .clear-search.active {
-            display: inline-block;
-        }
 
-        /* 分類樹樣式 */
         .category-tree {
-            flex: 1; /* 佔用剩餘空間 */
-            min-height: 0; /* 允許縮小 */
+            flex: 1;
+            min-height: 0;
             display: flex;
             flex-direction: column;
         }
@@ -140,236 +144,191 @@
         .category-tree h3 {
             margin-top: 0;
             margin-bottom: 15px;
-            color: #333;
-            font-size: 1.2rem;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 8px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-shrink: 0; /* 防止標題被壓縮 */
         }
 
         .reset-categories {
-            background: #6c757d;
+            background: var(--subtle-text-color);
             color: white;
             border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            transition: background-color var(--transition-speed) ease;
         }
+        .reset-categories:hover { background: #5a6268; }
 
-        .reset-categories:hover {
-            background: #5a6268;
-        }
-
-        /* 分類樹容器 - 可滾動區域 */
         .category-tree-container {
             flex: 1;
             overflow-y: auto;
-            overflow-x: hidden;     /* 隱藏水平滾動 */
-            padding-right: 5px;
-            margin-right: -5px;
+            padding-right: 10px;
         }
 
-        .category-node {
-            margin-bottom: 5px;
-        }
+        .category-tree-container::-webkit-scrollbar { width: 6px; }
+        .category-tree-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+        .category-tree-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .category-tree-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
         .category-item {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 4px 8px;       /* 調整內邊距 */
+            padding: 8px 12px;
             color: #555;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             cursor: pointer;
-            transition: background-color 0.2s ease;
-            border-radius: 4px;
-            white-space: nowrap;    /* 防止文字折行 */
-            min-width: 0;           /* 允許彈性調整 */
+            transition: all var(--transition-speed) ease;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            font-weight: 500;
         }
 
         .category-item:hover {
-            background-color: #f8f9fa;
+            background-color: #f1f5f8;
+            color: var(--primary-color);
         }
 
         .category-item.active {
-            background-color: #007bff;
+            background-image: linear-gradient(to right, var(--primary-color), var(--accent-color));
             color: white;
+            box-shadow: 0 4px 10px rgba(58, 123, 213, 0.3);
+            transform: translateX(5px);
         }
-
         .category-item.active .category-count {
             background-color: white;
-            color: #007bff;
-        }
-
-        .category-name {
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            flex: 1;                /* 佔用剩餘空間 */
+            color: var(--primary-color);
         }
 
         .category-toggle {
             font-size: 0.8rem;
-            color: #6c757d;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-            margin-right: 5px;
+            color: var(--subtle-text-color);
+            transition: transform var(--transition-speed) ease, color var(--transition-speed) ease;
+            margin-right: 8px;
+            padding: 5px;
         }
-
-        .category-toggle.expanded {
-            transform: rotate(90deg);
-        }
+        .category-item:hover .category-toggle { color: var(--primary-color); }
+        .category-toggle.expanded { transform: rotate(90deg); }
+        .category-name { display: flex; align-items: center; }
 
         .category-count {
-            background: #007bff;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 10px;
+            background: var(--border-color);
+            color: var(--subtle-text-color);
+            padding: 3px 9px;
+            border-radius: 12px;
             font-size: 0.8rem;
+            font-weight: 600;
+            transition: all var(--transition-speed) ease;
+            margin-left: auto;
         }
 
         .category-children {
             margin-left: 20px;
-            border-left: 2px solid #e9ecef;
-            padding-left: 10px;
+            padding-left: 15px;
+            border-left: 2px solid var(--border-color);
             display: none;
+            overflow: hidden;
         }
+        .category-children.expanded { display: block; }
 
-        .category-children.expanded {
-            display: block;
-        }
-
-        /* 自訂滾動條樣式 */
-        .category-tree-container::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .category-tree-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        .category-tree-container::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
-        }
-
-        .category-tree-container::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-
-        /* 文章卡片樣式 */
         .post-item {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            padding: 24px;
-            margin-bottom: 24px;
-            transition: all 0.3s ease;
-            border: 1px solid #e9ecef;
+            background: var(--card-background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 30px;
+            margin-bottom: 30px;
+            transition: all var(--transition-speed) ease;
+            border: 1px solid transparent;
         }
 
         .post-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary-color);
         }
-
-        .post-item.hidden {
-            display: none;
-        }
+        .post-item.hidden { display: none; }
 
         .post-item h2 {
             margin: 0 0 12px 0;
-            font-size: 1.4rem;
+            font-size: 1.6rem;
             font-weight: 600;
             line-height: 1.4;
         }
 
         .post-item h2 a {
-            color: #2c3e50;
+            color: var(--text-color);
             text-decoration: none;
-            transition: color 0.2s ease;
+            background-image: linear-gradient(var(--primary-color), var(--primary-color));
+            background-position: 0% 100%;
+            background-repeat: no-repeat;
+            background-size: 0% 2px;
+            transition: background-size var(--transition-speed) ease;
         }
-
         .post-item h2 a:hover {
-            color: #007bff;
+            background-size: 100% 2px;
         }
 
         .post-meta {
-            color: #666;
+            color: var(--subtle-text-color);
             font-size: 0.9rem;
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 15px;
             align-items: center;
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #f0f0f0;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
         }
 
-        .post-meta .date {
-            color: #888;
-            font-weight: 500;
-        }
+        .post-meta .date { font-weight: 500; }
 
         .tag, .category {
-            background: orange;
             color: white;
-            padding: 4px 10px;
+            padding: 5px 12px;
             border-radius: 16px;
-            margin-right: 6px;
-            font-size: 0.6rem;
+            font-size: 0.75rem;
             font-weight: 500;
             text-decoration: none;
-            transition: transform 0.2s ease;
+            transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+            display: inline-block;
         }
+        .tag { background-image: linear-gradient(to right, #ff9a44, #ff6b6b); }
+        .category { background-image: linear-gradient(to right, #28a745, #20c997); }
 
         .tag:hover, .category:hover {
-            transform: scale(1.05);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
-        .category {
-            background: linear-gradient(135deg, #28a745, #20c997);
-        }
-
-        .categories, .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
+        .categories, .tags { display: flex; flex-wrap: wrap; gap: 8px; }
 
         .blog-header {
-            background: white;
-            padding: 40px 30px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
+            background-color: var(--card-background);
+            padding: 50px 40px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 40px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+            background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         .blog-header h1 {
-            color: #2c3e50;
+            color: white;
             margin: 0 0 20px 0;
-            font-size: 2.5rem;
+            font-size: 3rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
         .blog-stats {
-            color: #666;
-            font-size: 0.95rem;
+            color: white;
+            font-size: 1rem;
             display: flex;
             justify-content: center;
             gap: 30px;
@@ -378,125 +337,75 @@
         }
 
         .blog-stats span {
-            background: #f8f9fa;
-            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 18px;
             border-radius: 20px;
             font-weight: 500;
+            backdrop-filter: blur(5px);
         }
 
         .clear-filter {
-            background: linear-gradient(135deg, #6c757d, #5a6268);
+            background: rgba(255, 255, 255, 0.2);
             color: white;
-            border: none;
-            padding: 8px 16px;
+            border: 1px solid white;
+            padding: 8px 18px;
             border-radius: 20px;
             font-size: 0.85rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-speed) ease;
             font-weight: 500;
         }
-
         .clear-filter:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            background: white;
+            color: var(--primary-color);
         }
+        .clear-filter.hidden { display: none; }
 
-        .clear-filter.hidden {
+        .filter-info, .search-info {
+            font-weight: 500;
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            border-radius: var(--border-radius);
+            border-left: 5px solid;
             display: none;
         }
-
         .filter-info {
-            color: #007bff;
-            font-weight: 600;
-            margin-bottom: 24px;
-            padding: 16px 20px;
-            background: linear-gradient(135deg, #e7f3ff, #f0f8ff);
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-            display: none;
+            background: #e7f3ff;
+            border-color: var(--primary-color);
+            color: #004085;
         }
-
-        .filter-info.active {
-            display: block;
-        }
-
         .search-info {
-            color: #28a745;
-            font-weight: 600;
-            margin-bottom: 24px;
-            padding: 16px 20px;
-            background: linear-gradient(135deg, #d4edda, #e8f5e8);
-            border-radius: 8px;
-            border-left: 4px solid #28a745;
-            display: none;
+            background: #e8f5e8;
+            border-color: #28a745;
+            color: #155724;
         }
+        .filter-info.active, .search-info.active { display: block; }
 
-        .search-info.active {
-            display: block;
-        }
-
-        /* 響應式設計 */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .container {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-
+        @media (max-width: 992px) {
+            .container { grid-template-columns: 1fr; }
             .sidebar {
                 position: static;
                 order: -1;
                 max-height: none;
-                min-width: auto;
-                max-width: none;
                 width: 100%;
+                box-sizing: border-box;
             }
+            .category-tree-container { max-height: 300px; }
+        }
 
-            .category-tree-container {
-                max-height: 300px; /* 在手機上限制高度 */
-            }
-
-            .post-item {
-                padding: 20px;
-                margin-bottom: 20px;
-            }
-
-            .post-item h2 {
-                font-size: 1.3rem;
-            }
-
-            .blog-header {
-                padding: 30px 20px;
-            }
-
-            .blog-header h1 {
-                font-size: 2rem;
-            }
-
-            .blog-stats {
-                gap: 15px;
-                font-size: 0.9rem;
-            }
-
-            .blog-stats span {
-                padding: 6px 12px;
-            }
+        @media (max-width: 768px) {
+            body { padding: 15px; }
+            .container { gap: 20px; }
+            .post-item { padding: 25px; }
+            .post-item h2 { font-size: 1.4rem; }
+            .blog-header { padding: 40px 25px; }
+            .blog-header h1 { font-size: 2.2rem; }
+            .blog-stats { gap: 15px; font-size: 0.9rem; }
         }
 
         @media (max-width: 480px) {
-            .post-meta {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-
-            .blog-stats {
-                flex-direction: column;
-                gap: 10px;
-            }
+            .post-meta { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .blog-stats { flex-direction: column; gap: 10px; }
         }
     </style>
 </head>
@@ -540,14 +449,10 @@
     </main>
 
     <aside class="sidebar">
-        <!-- 搜尋區域 -->
         <div class="search-section">
             <h3>搜尋文章</h3>
             <div class="search-container">
-                <input class="search-input"
-                       id="search-input"
-                       placeholder="搜尋標題、標籤或分類..."
-                       type="text">
+                <input class="search-input" id="search-input" placeholder="搜尋標題、標籤..." type="text">
                 <button class="search-button" id="search-button">🔍</button>
             </div>
             <div class="search-results" id="search-results">
@@ -556,7 +461,6 @@
             <button class="clear-search" id="clear-search">清除搜尋</button>
         </div>
 
-        <!-- 分類目錄 -->
         <div class="category-tree">
             <h3>
                 分類目錄
@@ -570,7 +474,6 @@
 </div>
 
 <script>
-    // 搜尋和篩選功能
     class BlogFilter {
         constructor() {
             this.allPosts = [];
@@ -580,197 +483,94 @@
         }
 
         init() {
-            // 收集所有文章
             this.allPosts = Array.from(document.querySelectorAll('.post-item'));
-
-            // 綁定事件
             this.bindSearchEvents();
             this.bindCategoryEvents();
             this.bindFilterEvents();
+            this.updateStats(this.allPosts.length);
         }
 
         bindSearchEvents() {
             const searchInput = document.getElementById('search-input');
             const searchButton = document.getElementById('search-button');
             const clearSearchButton = document.getElementById('clear-search');
-
-            // 搜尋按鈕點擊
-            searchButton.addEventListener('click', () => {
-                this.performSearch();
-            });
-
-            // 輸入框按 Enter 鍵
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.performSearch();
-                }
-            });
-
-            // 即時搜尋（輸入時）
-            searchInput.addEventListener('input', (e) => {
-                if (e.target.value.trim() === '') {
-                    this.clearSearch();
-                }
-            });
-
-            // 清除搜尋
-            clearSearchButton.addEventListener('click', () => {
-                this.clearSearch();
-            });
+            searchButton.addEventListener('click', () => this.performSearch());
+            searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.performSearch(); });
+            searchInput.addEventListener('input', (e) => { if (e.target.value.trim() === '') this.clearSearch(); });
+            clearSearchButton.addEventListener('click', () => this.clearSearch());
         }
 
         bindCategoryEvents() {
-            // 綁定展開/收合事件
             document.querySelectorAll('.category-toggle').forEach(toggle => {
                 toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.toggleCategory(toggle);
                 });
             });
-
-            // 綁定分類篩選事件
             document.querySelectorAll('.category-item').forEach(item => {
                 item.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('category-toggle')) {
-                        return;
-                    }
-
+                    if (e.target.classList.contains('category-toggle')) return;
                     const categoryPath = item.getAttribute('data-category-path');
                     const categoryName = item.getAttribute('data-category-name');
-
-                    if (categoryPath && categoryName) {
-                        this.filterByCategory(categoryPath, categoryName);
-                    }
+                    if (categoryPath && categoryName) this.filterByCategory(categoryPath, categoryName);
                 });
             });
-
-            // 重設分類按鈕
-            document.getElementById('reset-categories').addEventListener('click', () => {
-                this.resetCategories();
-            });
+            document.getElementById('reset-categories').addEventListener('click', () => this.resetCategories());
         }
 
         bindFilterEvents() {
-            // 清除篩選按鈕
-            document.getElementById('clear-filter').addEventListener('click', () => {
-                this.clearAllFilters();
-            });
+            document.getElementById('clear-filter').addEventListener('click', () => this.clearAllFilters());
         }
 
         performSearch() {
-            const searchInput = document.getElementById('search-input');
-            const query = searchInput.value.trim();
-
-            if (query === '') {
-                this.clearSearch();
-                return;
-            }
-
+            const query = document.getElementById('search-input').value.trim();
             this.currentSearchQuery = query.toLowerCase();
-
-            // 執行搜尋
-            let visibleCount = 0;
-            this.allPosts.forEach(post => {
-                const title = (post.getAttribute('data-title') || '').toLowerCase();
-                const tags = (post.getAttribute('data-tags') || '').toLowerCase();
-                const categories = (post.getAttribute('data-categories') || '').toLowerCase();
-
-                const matchesSearch = title.includes(this.currentSearchQuery) ||
-                    tags.includes(this.currentSearchQuery) ||
-                    categories.includes(this.currentSearchQuery);
-
-                // 同時考慮分類篩選
-                let matchesCategory = true;
-                if (this.currentCategoryFilter) {
-                    matchesCategory = categories.includes(this.currentCategoryFilter.toLowerCase());
-                }
-
-                const shouldShow = matchesSearch && matchesCategory;
-
-                if (shouldShow) {
-                    post.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    post.classList.add('hidden');
-                }
-            });
-
-            this.updateSearchUI(visibleCount, query);
+            this.applyFilters();
         }
 
         clearSearch() {
-            const searchInput = document.getElementById('search-input');
-            searchInput.value = '';
+            document.getElementById('search-input').value = '';
             this.currentSearchQuery = null;
-
-            // 重新篩選（只考慮分類篩選）
             this.applyFilters();
-            this.updateSearchUI(0, null);
         }
 
         filterByCategory(categoryPath, categoryName) {
             this.currentCategoryFilter = categoryPath;
-
-            // 移除之前的活動狀態
-            document.querySelectorAll('.category-item').forEach(item => {
-                item.classList.remove('active');
-            });
-
-            // 添加當前活動狀態
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
             document.querySelectorAll(`[data-category-path="${categoryPath}"]`).forEach(item => {
                 item.classList.add('active');
+                let parent = item.closest('.category-children');
+                while(parent) {
+                    parent.classList.add('expanded');
+                    const toggle = parent.previousElementSibling.querySelector('.category-toggle');
+                    if (toggle) toggle.classList.add('expanded');
+                    parent = parent.parentElement.closest('.category-children');
+                }
             });
-
-            // 重新篩選
             this.applyFilters();
-            this.updateCategoryUI(categoryName);
         }
 
         resetCategories() {
             this.currentCategoryFilter = null;
-
-            // 移除所有活動狀態
-            document.querySelectorAll('.category-item').forEach(item => {
-                item.classList.remove('active');
-            });
-
-            // 重新篩選
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
             this.applyFilters();
-            this.updateCategoryUI(null);
         }
 
         clearAllFilters() {
-            this.currentCategoryFilter = null;
-            this.currentSearchQuery = null;
-
-            // 清除搜尋輸入
             document.getElementById('search-input').value = '';
-
-            // 移除分類活動狀態
-            document.querySelectorAll('.category-item').forEach(item => {
-                item.classList.remove('active');
-            });
-
-            // 顯示所有文章
-            this.allPosts.forEach(post => {
-                post.classList.remove('hidden');
-            });
-
-            // 更新UI
-            this.updateSearchUI(0, null);
-            this.updateCategoryUI(null);
-            this.updateStats(this.allPosts.length);
+            this.currentSearchQuery = null;
+            this.currentCategoryFilter = null;
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            this.applyFilters();
         }
 
         applyFilters() {
             let visibleCount = 0;
-
             this.allPosts.forEach(post => {
-                const title = (post.getAttribute('data-title') || '').toLowerCase();
-                const tags = (post.getAttribute('data-tags') || '').toLowerCase();
-                const categories = (post.getAttribute('data-categories') || '').toLowerCase();
+                const title = (post.dataset.title || '').toLowerCase();
+                const tags = (post.dataset.tags || '').toLowerCase();
+                const categories = (post.dataset.categories || '').toLowerCase();
 
-                // 檢查搜尋條件
                 let matchesSearch = true;
                 if (this.currentSearchQuery) {
                     matchesSearch = title.includes(this.currentSearchQuery) ||
@@ -778,39 +578,27 @@
                         categories.includes(this.currentSearchQuery);
                 }
 
-                // 檢查分類條件
                 let matchesCategory = true;
                 if (this.currentCategoryFilter) {
-                    matchesCategory = categories.includes(this.currentCategoryFilter.toLowerCase());
+                    matchesCategory = (categories + '/').includes(this.currentCategoryFilter.toLowerCase() + '/');
                 }
 
                 const shouldShow = matchesSearch && matchesCategory;
-
-                if (shouldShow) {
-                    post.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    post.classList.add('hidden');
-                }
+                post.classList.toggle('hidden', !shouldShow);
+                if (shouldShow) visibleCount++;
             });
 
             this.updateStats(visibleCount);
+            this.updateSearchUI(this.currentSearchQuery ? visibleCount : 0, this.currentSearchQuery);
+            const activeCategory = document.querySelector('.category-item.active');
+            this.updateCategoryUI(activeCategory ? activeCategory.dataset.categoryName : null);
         }
 
         toggleCategory(toggle) {
-            const categoryNode = toggle.closest('.category-node');
-            const children = categoryNode.querySelector('.category-children');
-
-            if (children) {
-                const isExpanded = children.classList.contains('expanded');
-
-                if (isExpanded) {
-                    children.classList.remove('expanded');
-                    toggle.classList.remove('expanded');
-                } else {
-                    children.classList.add('expanded');
-                    toggle.classList.add('expanded');
-                }
+            const children = toggle.closest('.category-item').nextElementSibling;
+            if (children && children.classList.contains('category-children')) {
+                children.classList.toggle('expanded');
+                toggle.classList.toggle('expanded');
             }
         }
 
@@ -821,44 +609,33 @@
             const searchInfo = document.getElementById('search-info');
             const searchQuery = document.getElementById('search-query');
 
+            searchResults.classList.toggle('active', !!query);
+            clearSearchButton.classList.toggle('active', !!query);
+            searchInfo.classList.toggle('active', !!query);
             if (query) {
-                searchResults.classList.add('active');
                 searchCount.textContent = visibleCount;
-                clearSearchButton.classList.add('active');
-                searchInfo.classList.add('active');
                 searchQuery.textContent = query;
-            } else {
-                searchResults.classList.remove('active');
-                clearSearchButton.classList.remove('active');
-                searchInfo.classList.remove('active');
             }
         }
 
         updateCategoryUI(categoryName) {
             const filterInfo = document.getElementById('filter-info');
             const filterCategory = document.getElementById('filter-category');
-            const clearFilterButton = document.getElementById('clear-filter');
 
+            filterInfo.classList.toggle('active', !!categoryName);
             if (categoryName) {
-                filterInfo.classList.add('active');
                 filterCategory.textContent = categoryName;
-                clearFilterButton.classList.remove('hidden');
-            } else {
-                filterInfo.classList.remove('active');
-                clearFilterButton.classList.add('hidden');
             }
         }
 
         updateStats(visibleCount) {
-            const visibleCountElement = document.getElementById('visible-count');
-            visibleCountElement.textContent = visibleCount;
+            document.getElementById('visible-count').textContent = visibleCount;
+            const totalCount = this.allPosts.length;
+            const clearFilterButton = document.getElementById('clear-filter');
+            clearFilterButton.classList.toggle('hidden', visibleCount === totalCount);
         }
     }
-
-    // 初始化
-    document.addEventListener('DOMContentLoaded', () => {
-        new BlogFilter();
-    });
+    document.addEventListener('DOMContentLoaded', () => new BlogFilter());
 </script>
 </body>
 </html>
