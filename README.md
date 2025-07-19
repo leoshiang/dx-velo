@@ -33,7 +33,7 @@
 
 ### 使用預編譯版本 (推薦)
 
-1. 前往 [Releases 頁面](../../releases) 下載對應平台的 ZIP 檔案
+1. 前往 [Releases 頁面](https://github.com/leoshiang/dx-velo/releases) 下載對應平台的 ZIP 檔案
 2. 解壓縮到任意目錄
 3. 建立 `velo.config.json` 設定檔案 (可參考範例)
 4. 建立 `Posts` 目錄並放置 Markdown 文章
@@ -371,7 +371,7 @@ velo/
 歡迎提交 Issue 和 Pull Request！
 ## 支援
 如有問題或建議，請：
-1. 查看 [Issues](../../issues) 頁面
+1. 查看 [Issues](https://github.com/leoshiang/dx-velo/issues) 頁面
 2. 建立新的 Issue
 3. 參考本 README 文件
 
