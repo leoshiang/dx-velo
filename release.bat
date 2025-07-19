@@ -3,12 +3,12 @@
 setlocal enabledelayedexpansion
 
 echo ================================
-echo     Velo 發布工具 v1.0
+echo     Velo 發布工具 v1.0.1
 echo ================================
 
 :: 設定變數
 set "PROJECT_NAME=Velo"
-set "VERSION=1.0.0"
+set "VERSION=1.0.1"
 set "TEMP_DIR=temp_build"
 
 :: 產生日期字串 (YYYYMMDD)
