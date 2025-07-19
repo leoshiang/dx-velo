@@ -30,15 +30,15 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
-            overflow-wrap: break-word;  /* 強制長文字換行 */
-            word-wrap: break-word;      /* 相容性 */
-            min-width: 0;              /* 允許 flex/grid 項目縮小 */
+            overflow-wrap: break-word; /* 強制長文字換行 */
+            word-wrap: break-word; /* 相容性 */
+            min-width: 0; /* 允許 flex/grid 項目縮小 */
         }
 
         /* 右側欄 */
         .sidebar {
             background: white;
-            padding: 0;                     /* 移除整體 padding */
+            padding: 0; /* 移除整體 padding */
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
             position: sticky;
@@ -46,9 +46,9 @@
             max-height: calc(100vh - 40px);
             display: flex;
             flex-direction: column;
-            min-width: 250px;               /* 設定最小寬度 */
-            max-width: 400px;               /* 設定最大寬度，避免太寬 */
-            width: max-content;             /* 根據內容調整寬度 */
+            min-width: 250px; /* 設定最小寬度 */
+            max-width: 400px; /* 設定最大寬度，避免太寬 */
+            width: max-content; /* 根據內容調整寬度 */
         }
 
         /* 返回首頁按鈕 - 固定在頂部 */
@@ -56,13 +56,13 @@
             font-size: .9rem;
             background: #28a745;
             color: #fff;
-            padding: 12px 20px;             /* 調整 padding */
+            padding: 12px 20px; /* 調整 padding */
             text-decoration: none;
             text-align: center;
-            border-radius: 8px 8px 0 0;     /* 只有上方圓角 */
-            flex-shrink: 0;                 /* 防止收縮 */
-            margin: 0;                      /* 移除外邊距 */
-            white-space: nowrap;            /* 防止文字折行 */
+            border-radius: 8px 8px 0 0; /* 只有上方圓角 */
+            flex-shrink: 0; /* 防止收縮 */
+            margin: 0; /* 移除外邊距 */
+            white-space: nowrap; /* 防止文字折行 */
         }
 
         .home-link:hover {
@@ -71,15 +71,15 @@
 
         /* TOC 容器 - 可滾動區域 */
         .toc-container {
-            flex: 1;                        /* 佔用剩餘空間 */
-            overflow-y: auto;               /* 允許滾動 */
-            padding: 20px;                  /* 恢復內邊距 */
-            min-height: 0;                  /* 允許收縮 */
+            flex: 1; /* 佔用剩餘空間 */
+            overflow-y: auto; /* 允許滾動 */
+            padding: 20px; /* 恢復內邊距 */
+            min-height: 0; /* 允許收縮 */
         }
 
         /* TOC 樣式 */
         .toc-title {
-            margin: 0 0 15px 0;             /* 調整上邊距 */
+            margin: 0 0 15px 0; /* 調整上邊距 */
             font-size: 1.1rem;
             border-bottom: 2px solid #007bff;
             padding-bottom: 6px;
@@ -95,8 +95,8 @@
 
         .toc-list li {
             margin-bottom: 6px;
-            overflow: hidden;               /* 如果內容太長，隱藏超出部分 */
-            text-overflow: ellipsis;        /* 顯示省略號 */
+            overflow: hidden; /* 如果內容太長，隱藏超出部分 */
+            text-overflow: ellipsis; /* 顯示省略號 */
         }
 
         .toc-list a {
@@ -105,7 +105,7 @@
             display: block;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;            /* 防止 TOC 項目折行 */
+            white-space: nowrap; /* 防止 TOC 項目折行 */
         }
 
         .toc-list a:hover {
@@ -150,8 +150,8 @@
 
         /* 文章內容區域防止溢出 */
         .article-content {
-            overflow-x: auto;          /* 水平溢出時顯示滾動條 */
-            max-width: 100%;           /* 不超過父容器寬度 */
+            overflow-x: auto; /* 水平溢出時顯示滾動條 */
+            max-width: 100%; /* 不超過父容器寬度 */
         }
 
         .article-content h1,
@@ -185,17 +185,17 @@
         .article-content table,
         .article-content iframe,
         .article-content video {
+            font-family: Consolas, Geneva, sans-serif;
             max-width: 100%;
             overflow-x: auto;
         }
 
         /* 程式碼區塊特殊處理 */
         .article-content pre {
-            white-space: pre-wrap;     /* 保持格式但允許換行 */
+            white-space: pre-wrap; /* 保持格式但允許換行 */
             word-wrap: break-word;
             overflow-x: auto;
             background: #f8f9fa;
-            padding: 15px;
             border-radius: 5px;
             border: 1px solid #e9ecef;
         }
@@ -282,20 +282,63 @@
         /* <= 768px：改用單欄排版，文章區域可佔滿寬度 */
         @media (max-width: 768px) {
             .container {
-                grid-template-columns: 1fr;      /* 只剩一欄 */
+                grid-template-columns: 1fr; /* 只剩一欄 */
             }
 
             /* 讓側欄排在文章前，並取消 sticky 與高度限制 */
             .sidebar {
-                order: -1;                       /* 排在最前 */
+                order: -1; /* 排在最前 */
                 position: static;
                 max-height: none;
-                margin-bottom: 20px;             /* 與文章留間距 */
+                margin-bottom: 20px; /* 與文章留間距 */
             }
 
             .toc-container {
-                overflow: visible;               /* 移動設備上不滾動 */
+                overflow: visible; /* 移動設備上不滾動 */
             }
+        }
+    </style>
+    <!-- Mermaid.js 圖表支援 -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        /* Mermaid 於頁面載入後自動初始化 */
+        mermaid.initialize({startOnLoad: true});
+    </script>
+
+    <!-- MathJax 數學公式支援 -->
+    <script id="MathJax-script"
+            async
+            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+    <!-- Highlight.js 語法高亮 -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        /* ───────── 程式碼複製按鈕 ───────── */
+        .code-wrapper { /* 讓 <pre> 可以絕對定位子元素 */
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 10px;
+            font-size: .75rem;
+            color: #fff;
+            background: #28a745;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            opacity: .8;
+            transition: opacity .2s ease;
+            user-select: none;
+        }
+
+        .copy-btn:hover {
+            opacity: 1;
         }
     </style>
 </head>
@@ -324,17 +367,52 @@
     <!-- 右欄：返回首頁＋目錄 -->
     <aside class="sidebar">
         <!-- 固定在頂部的返回首頁按鈕 -->
-        <a class="home-link" href="index.html">返回首頁</a>
+        <a class="home-link"
+           href="index.html">返回首頁</a>
 
         <!-- 可滾動的目錄區域 -->
         <div class="toc-container">
             <h3 class="toc-title">目錄</h3>
-            <ul class="toc-list" id="toc"></ul>
+            <ul class="toc-list"
+                id="toc"></ul>
         </div>
     </aside>
 </div>
 
 <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        /* 語法高亮 */
+        hljs.highlightAll();
+
+        /* 為每個 <pre><code> 生成複製按鈕 */
+        document.querySelectorAll('pre > code').forEach(codeEl => {
+            const pre = codeEl.parentElement;
+            /* 建立包裹元素，確保按鈕能定位 */
+            const wrapper = document.createElement('div');
+            wrapper.className = 'code-wrapper';
+            pre.replaceWith(wrapper);
+            wrapper.appendChild(pre);
+
+            /* 複製按鈕 */
+            const btn = document.createElement('button');
+            btn.className = 'copy-btn';
+            btn.textContent = 'Copy';
+            wrapper.appendChild(btn);
+
+            /* 點擊後複製內容 */
+            btn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(codeEl.innerText);
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => btn.textContent = 'Copy', 1500);
+                } catch {
+                    btn.textContent = 'Failed';
+                    setTimeout(() => btn.textContent = 'Copy', 1500);
+                }
+            });
+        });
+    });
+
     /* 動態產生 TOC */
     (function () {
         const tocUl = document.getElementById('toc');
