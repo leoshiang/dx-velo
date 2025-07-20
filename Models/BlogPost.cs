@@ -18,8 +18,9 @@ public class BlogPost
     {
         get
         {
-            // 統一放在根目錄，避免相對路徑圖片問題
-            return $"{Slug}.html";
+            // 使用檔案路徑的 HashCode 確保唯一性
+            var hashCode = GetFileHashCode();
+            return $"{hashCode}-{Slug}.html";
         }
     }
 
@@ -28,6 +29,21 @@ public class BlogPost
     public string? SourceFilePath { get; set; }
     public List<string> Tags { get; set; } = [];
     public required string Title { get; set; }
+
+    /// <summary>
+    /// 基於來源檔案路徑生成 HashCode
+    /// </summary>
+    private string GetFileHashCode()
+    {
+        if (string.IsNullOrEmpty(SourceFilePath))
+        {
+            // 如果沒有來源檔案路徑，使用 Title 和 HtmlFileId 來生成 hash
+            return Math.Abs((Title + HtmlFileId).GetHashCode()).ToString("x8");
+        }
+
+        // 使用來源檔案路徑生成 8 位16進制 hash
+        return Math.Abs(SourceFilePath.GetHashCode()).ToString("x8");
+    }
 
     /// <summary>
     /// 清理路徑中的特殊字符
