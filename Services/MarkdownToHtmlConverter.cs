@@ -43,8 +43,8 @@ public class MarkdownToHtmlConverter(
         Directory.CreateDirectory(outputPath!);
         Directory.CreateDirectory(imageOutputPath!);
 
-        // 1. 文章轉換 (CPU + I/O) ➜ 使用平行迴圈提升效能
-        await Parallel.ForEachAsync(posts, async (post, _) =>
+        // 1. 文章轉換 - 改為單執行緒循序處理
+        foreach (var post in posts)
         {
             try
             {
@@ -56,9 +56,9 @@ public class MarkdownToHtmlConverter(
             {
                 logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
             }
-        });
+        }
 
-        // 2. 複製圖片 (I/O bound) ➜ 亦可平行
+        // 2. 複製圖片 - 改為單執行緒處理
         await CopyMappedImagesAsync();
 
         // 3. 生成首頁 & 靜態資源
@@ -133,27 +133,42 @@ public class MarkdownToHtmlConverter(
         logger.LogInformation("開始複製圖片...");
 
         var imageOutputPath = configuration["BlogSettings:ImageOutputPath"];
-        var tasks = _imageMapping
-            .Select(kv => Task.Run(() =>
+    
+        // 改為單執行緒循序處理，避免 Task.Run 和 Task.WhenAll
+        foreach (var (originalPath, targetFileName) in _imageMapping)
+        {
+            try
             {
-                var (originalPath, relativePath) = (kv.Key, kv.Value);
-                var targetPath = Path.Combine(imageOutputPath!, relativePath);
-                var targetDir = Path.GetDirectoryName(targetPath)!;
-                Directory.CreateDirectory(targetDir);
-
-                // 若目的檔存在且大小相同則略過
-                if (File.Exists(targetPath) &&
-                    new FileInfo(targetPath).Length == new FileInfo(originalPath).Length)
+                var targetPath = Path.Combine(imageOutputPath!, targetFileName);
+            
+                if (File.Exists(originalPath))
                 {
-                    return;
+                    var targetDir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    await using var sourceStream = File.OpenRead(originalPath);
+                    await using var targetStream = File.Create(targetPath);
+                    await sourceStream.CopyToAsync(targetStream);
+                
+                    logger.LogDebug("已複製圖片: {OriginalPath} -> {TargetPath}", originalPath, targetPath);
                 }
+                else
+                {
+                    logger.LogWarning("圖片檔案不存在: {Path}", originalPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "複製圖片失敗: {OriginalPath}", originalPath);
+            }
+        }
 
-                File.Copy(originalPath, targetPath, true);
-            }));
-
-        await Task.WhenAll(tasks);
         logger.LogInformation("圖片複製完成");
     }
+
 
     private Task CopyOtherStaticResourcesAsync()
     {
@@ -1399,15 +1414,15 @@ public class MarkdownToHtmlConverter(
     {
         try
         {
-            // 複製字典快照以避免併發修改錯誤
-            var placeholders = _mermaidPlaceholders.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            // 建立快照以避免枚舉期間修改集合的例外
+            var snapshot = _mermaidPlaceholders.ToList();
 
             // 將占位符替換回 Mermaid HTML
-            foreach (var kvp in placeholders)
+            foreach (var (key, value) in snapshot)
             {
                 // 占位符可能被包裝在 <p> 標籤中，需要移除
-                html = html.Replace($"<p>{kvp.Key}</p>", kvp.Value);
-                html = html.Replace(kvp.Key, kvp.Value);
+                html = html.Replace($"<p>{key}</p>", value);
+                html = html.Replace(key, value);
             }
 
             return html;
@@ -1418,6 +1433,7 @@ public class MarkdownToHtmlConverter(
             return html;
         }
     }
+
 
     /// <summary>
     /// 清理路徑中的特殊字符
