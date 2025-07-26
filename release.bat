@@ -8,7 +8,7 @@ echo ================================
 
 :: 設定變數
 set "PROJECT_NAME=velo"
-set "VERSION=1.0.4"
+set "VERSION=1.0.5"
 set "TEMP_DIR=temp_build"
 
 :: 產生日期字串 (YYYYMMDD)
