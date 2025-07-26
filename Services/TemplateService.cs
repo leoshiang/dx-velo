@@ -47,9 +47,13 @@ public class TemplateService(IConfiguration configuration) : ITemplateService
         result = result.Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"));
         result = result.Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"));
         result = result.Replace("{{Slug}}", post.Slug);
+        result = result.Replace("{{FirstImageUrl}}", post.FirstImageUrl);
 
         // 作者資訊
         result = result.Replace("{{Author}}", post.Author ?? string.Empty);
+
+        // 處理圖片相關模板變數
+        result = ProcessImageTemplates(result, post);
 
         // 替換分類
         if (post.Categories.Any())
@@ -91,6 +95,45 @@ public class TemplateService(IConfiguration configuration) : ITemplateService
         return Task.FromResult(File.Exists(templateFilePath));
     }
 
+    /// <summary>
+    /// 處理圖片相關的模板變數
+    /// </summary>
+    private string ProcessImageTemplates(string content, BlogPost post)
+    {
+        // 處理第一張圖片網址
+        content = content.Replace("{{FirstImageUrl}}", post.FirstImageUrl);
+
+        // 處理第一張圖片的 HTML - 如果有圖片才產生 img 標籤
+        var firstImageHtml = "";
+        if (!string.IsNullOrEmpty(post.FirstImageUrl))
+        {
+            firstImageHtml = $"<img src=\"{post.FirstImageUrl}\" alt=\"{post.Title}\" class=\"post-thumbnail\" />";
+        }
+
+        content = content.Replace("{{{FirstImageHTML}}}", firstImageHtml);
+
+        // 處理圖片陣列 - 生成 JSON 格式
+        var imagesJson = post.ImagePaths.Any()
+            ? "[" + string.Join(",", post.ImagePaths.Select(path => $"\"{path}\"")) + "]"
+            : "[]";
+        content = content.Replace("{{ImagesJSON}}", imagesJson);
+
+        // 處理圖片陣列 - 生成 HTML 格式
+        var imagesHtml = "";
+        if (post.ImagePaths.Any())
+        {
+            imagesHtml = string.Join("", post.ImagePaths.Select(path =>
+                $"<img src=\"{path}\" alt=\"{post.Title}\" class=\"post-image\" />"));
+        }
+
+        content = content.Replace("{{{ImagesHTML}}}", imagesHtml);
+
+        // 處理圖片數量
+        content = content.Replace("{{ImageCount}}", post.ImagePaths.Count.ToString());
+
+        return content;
+    }
+
     private string ProcessConditionalBlocks(string content, BlogPost post)
     {
         // 處理 {{#if Categories}} ... {{/if}} 區塊
@@ -107,6 +150,12 @@ public class TemplateService(IConfiguration configuration) : ITemplateService
         var authorPattern = @"{{#if Author}}(.*?){{/if}}";
         content = Regex.Replace(content, authorPattern,
             match => !string.IsNullOrEmpty(post.Author) ? match.Groups[1].Value : "",
+            RegexOptions.Singleline);
+
+        // 處理 {{#if FirstImage}} ... {{/if}} 區塊
+        var firstImagePattern = @"{{#if FirstImage}}(.*?){{/if}}";
+        content = Regex.Replace(content, firstImagePattern,
+            match => !string.IsNullOrEmpty(post.FirstImageUrl) ? match.Groups[1].Value : "",
             RegexOptions.Singleline);
 
         return content;
@@ -126,6 +175,8 @@ public class TemplateService(IConfiguration configuration) : ITemplateService
                 var item = itemTemplate;
                 item = item.Replace("{{Title}}", post.Title);
                 item = item.Replace("{{Slug}}", post.Slug);
+                item = item.Replace("{{HtmlFilePath}}", post.HtmlFilePath);
+                item = item.Replace("{{FirstImageUrl}}", post.FirstImageUrl);
                 item = item.Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"));
                 item = item.Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"));
                 item = item.Replace("{{Author}}", post.Author ?? string.Empty);
@@ -135,6 +186,24 @@ public class TemplateService(IConfiguration configuration) : ITemplateService
 
                 item = item.Replace("{{TagsPlain}}",
                     post.Tags.Any() ? string.Join(" ", post.Tags.Select(t => $"#{t}")) : "");
+
+                // *** 重要：在這裡處理圖片相關的模板變數 ***
+                item = ProcessImageTemplates(item, post);
+
+                // 處理分類 HTML
+                if (post.Categories.Any())
+                {
+                    var categoriesHtml = string.Join("",
+                        post.Categories.Select(c => $"<a href=\"#\" class=\"category\" data-category=\"{c}\">{c}</a>"));
+                    item = item.Replace("{{{Categories}}}", categoriesHtml);
+                }
+                else
+                {
+                    item = item.Replace("{{{Categories}}}", "");
+                }
+
+                // 處理首頁的條件性區塊
+                item = ProcessConditionalBlocks(item, post);
 
                 result.AppendLine(item);
             }

@@ -12,6 +12,16 @@ public class BlogPost
     public string HtmlFileId { get; set; } = Guid.NewGuid().ToString("N");
 
     /// <summary>
+    /// 文章中的所有圖檔路徑陣列
+    /// </summary>
+    public List<string> ImagePaths { get; set; } = [];
+
+    /// <summary>
+    /// 文章的第一張圖片網址，如果沒有圖片則為空字串
+    /// </summary>
+    public string FirstImageUrl => ImagePaths.FirstOrDefault() ?? string.Empty;
+
+    /// <summary>
     /// 根據原檔案名稱生成 HTML 檔案路徑（不建目錄）
     /// </summary>
     public string HtmlFilePath

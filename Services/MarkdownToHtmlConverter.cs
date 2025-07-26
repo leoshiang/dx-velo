@@ -109,7 +109,13 @@ public class MarkdownToHtmlConverter(
         {
             logger.LogInformation("開始轉換文章: {Title}", post.Title);
 
+            // 清空之前的圖片路徑
+            post.ImagePaths.Clear();
+
             var htmlContent = ConvertMarkdownToHtml(post.ContentHtml, post.SourceFilePath);
+
+            // 從轉換後的 HTML 中提取圖片路徑並填入 BlogPost
+            ExtractImagePathsFromHtml(post, htmlContent);
 
             // 檢查是否有自定義模板
             var templatePath = Path.Combine(configuration["BlogSettings:TemplatePath"] ?? "", "post.html");
@@ -123,8 +129,46 @@ public class MarkdownToHtmlConverter(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "轉換文章 {Title} 時發生錯誤", post.Title);
+            logger.LogError(ex, "轉換文章 {Title} 為 HTML 時發生錯誤", post.Title);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// 從 HTML 內容中提取圖片路徑並填入 BlogPost.ImagePaths
+    /// </summary>
+    private void ExtractImagePathsFromHtml(BlogPost post, string htmlContent)
+    {
+        try
+        {
+            // 使用正規表達式找出所有 img 標籤的 src 屬性
+            var imgPattern = @"<img[^>]+src=[""']([^""']+)[""'][^>]*>";
+            var regex = new Regex(imgPattern, RegexOptions.IgnoreCase);
+            var matches = regex.Matches(htmlContent);
+
+            foreach (Match match in matches)
+            {
+                var imageSrc = match.Groups[1].Value;
+
+                // 排除網路圖片 (以 http 開頭的)
+                if (!imageSrc.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 確保路徑格式正確 (使用正斜線)
+                    var normalizedPath = imageSrc.Replace('\\', '/');
+
+                    if (!post.ImagePaths.Contains(normalizedPath))
+                    {
+                        post.ImagePaths.Add(normalizedPath);
+                        logger.LogDebug("添加圖片路徑到文章 {Title}: {ImagePath}", post.Title, normalizedPath);
+                    }
+                }
+            }
+
+            logger.LogInformation("文章 {Title} 共找到 {Count} 張圖片", post.Title, post.ImagePaths.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "提取文章 {Title} 的圖片路徑時發生錯誤", post.Title);
         }
     }
 
@@ -432,6 +476,7 @@ public class MarkdownToHtmlConverter(
                 .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
                 .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
                 .Replace("{{Slug}}", post.Slug)
+                .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
                 .Replace("{{{Tags}}}", tagsHtml)
                 .Replace("{{TagsPlain}}", post.Tags.Count > 0 ? string.Join(", ", post.Tags) : "")
                 .Replace("{{{Categories}}}", categoriesHtml)
@@ -1254,6 +1299,7 @@ public class MarkdownToHtmlConverter(
                     return processedItem
                         .Replace("{{Title}}", post.Title)
                         .Replace("{{Slug}}", post.Slug)
+                        .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
                         .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
                         .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
                         .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))

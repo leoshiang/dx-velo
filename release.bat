@@ -101,6 +101,8 @@ for /l %%i in (0,1,5) do (
     
     :: 建立範例設定檔
     copy "velo.config.json" "!release_dir!\velo.config.json.example" >nul
+    copy "photography.config.json" "!release_dir!\photography.config.json.example" >nul
+    copy "default.config.json" "!release_dir!\default.config.json.example" >nul
     
     :: 建立 README 檔案
     call :create_readme "!release_dir!" "!displayName!" "!exe_name!"
