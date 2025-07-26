@@ -133,14 +133,14 @@ public class MarkdownToHtmlConverter(
         logger.LogInformation("開始複製圖片...");
 
         var imageOutputPath = configuration["BlogSettings:ImageOutputPath"];
-    
+
         // 改為單執行緒循序處理，避免 Task.Run 和 Task.WhenAll
         foreach (var (originalPath, targetFileName) in _imageMapping)
         {
             try
             {
                 var targetPath = Path.Combine(imageOutputPath!, targetFileName);
-            
+
                 if (File.Exists(originalPath))
                 {
                     var targetDir = Path.GetDirectoryName(targetPath);
@@ -152,7 +152,7 @@ public class MarkdownToHtmlConverter(
                     await using var sourceStream = File.OpenRead(originalPath);
                     await using var targetStream = File.Create(targetPath);
                     await sourceStream.CopyToAsync(targetStream);
-                
+
                     logger.LogDebug("已複製圖片: {OriginalPath} -> {TargetPath}", originalPath, targetPath);
                 }
                 else
@@ -1455,13 +1455,18 @@ public class MarkdownToHtmlConverter(
 
     private async Task SaveHtmlFileAsync(BlogPost post, string htmlContent)
     {
-        var outputPath = configuration["BlogSettings:HtmlOutputPath"]!;
-        var fullOutputPath = Path.Combine(outputPath, post.HtmlFilePath);
-        var directory = Path.GetDirectoryName(fullOutputPath)!;
+        var outputPath = configuration.GetValue("BlogSettings:HtmlOutputPath", "./Output");
 
-        if (!Directory.Exists(directory))
-            Directory.CreateDirectory(directory); // 只有 root 目錄時，這行幾乎不做事
+        // 確保輸出目錄存在
+        if (!Directory.Exists(outputPath))
+        {
+            Directory.CreateDirectory(outputPath);
+        }
 
-        await File.WriteAllTextAsync(fullOutputPath, htmlContent, Encoding.UTF8);
+        // 直接使用 HtmlFilePath，不建立分類目錄
+        var htmlFilePath = Path.Combine(outputPath, post.HtmlFilePath);
+
+        await File.WriteAllTextAsync(htmlFilePath, htmlContent);
+        logger.LogInformation("已保存 HTML 檔案: {FilePath}", htmlFilePath);
     }
 }

@@ -12,15 +12,25 @@ public class BlogPost
     public string HtmlFileId { get; set; } = Guid.NewGuid().ToString("N");
 
     /// <summary>
-    /// 根據分類和 slug 生成 HTML 檔案路徑
+    /// 根據原檔案名稱生成 HTML 檔案路徑（不建目錄）
     /// </summary>
     public string HtmlFilePath
     {
         get
         {
-            // 使用檔案路徑的 HashCode 確保唯一性
+            // 取得原檔案名稱（不含副檔名）
+            var originalFileName = string.IsNullOrEmpty(SourceFilePath)
+                ? Slug
+                : Path.GetFileNameWithoutExtension(SourceFilePath);
+
+            // 轉換檔案名稱：空白轉 -，英文小寫
+            var processedFileName = ProcessFileName(originalFileName);
+
+            // 生成 8 碼 hash code
             var hashCode = GetFileHashCode();
-            return $"{hashCode}-{Slug}.html";
+
+            // 組合最終檔案名稱：原檔案名稱-8碼hash.html
+            return $"{processedFileName}-{hashCode}.html";
         }
     }
 
@@ -31,7 +41,30 @@ public class BlogPost
     public required string Title { get; set; }
 
     /// <summary>
-    /// 基於來源檔案路徑生成 HashCode
+    /// 處理檔案名稱：空白轉 -，英文小寫
+    /// </summary>
+    private static string ProcessFileName(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+            return "untitled";
+
+        // 轉換為小寫
+        var processed = fileName.ToLower();
+
+        // 空白轉換成 -
+        processed = processed.Replace(" ", "-");
+
+        // 全型空格也轉換成 -
+        processed = processed.Replace("　", "-");
+
+        // 移除或替換其他不適合的字符
+        processed = SanitizePath(processed);
+
+        return processed;
+    }
+
+    /// <summary>
+    /// 基於來源檔案路徑生成 8 碼 HashCode
     /// </summary>
     private string GetFileHashCode()
     {
@@ -50,9 +83,7 @@ public class BlogPost
     /// </summary>
     private static string SanitizePath(string path)
     {
-        return path.Replace(" ", "-")
-            .Replace("　", "-") // 全型空格
-            .Replace("/", "-")
+        return path.Replace("/", "-")
             .Replace("\\", "-")
             .Replace(":", "-")
             .Replace("*", "-")
@@ -60,6 +91,26 @@ public class BlogPost
             .Replace("\"", "-")
             .Replace("<", "-")
             .Replace(">", "-")
-            .Replace("|", "-");
+            .Replace("|", "-")
+            .Replace(".", "-")
+            .Replace(",", "-")
+            .Replace(";", "-")
+            .Replace("!", "-")
+            .Replace("@", "-")
+            .Replace("#", "-")
+            .Replace("$", "-")
+            .Replace("%", "-")
+            .Replace("^", "-")
+            .Replace("&", "-")
+            .Replace("(", "-")
+            .Replace(")", "-")
+            .Replace("+", "-")
+            .Replace("=", "-")
+            .Replace("[", "-")
+            .Replace("]", "-")
+            .Replace("{", "-")
+            .Replace("}", "-")
+            .Replace("~", "-")
+            .Replace("`", "-");
     }
 }
