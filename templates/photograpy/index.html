@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>LEOSHIANG 的攝影作品集</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a69bd;
+            --secondary-color: #1abc9c;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --text-color: #343a40;
+            --subtle-text-color: #6c757d;
+            --border-color: #e9ecef;
+            --font-family-sans-serif: 'Lexend', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --border-radius: 10px;
+            --shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+            --transition-speed: 0.35s;
+        }
+
+        body {
+            font-family: var(--font-family-sans-serif);
+            line-height: 1.6;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 40px;
+        }
+
+        .sidebar {
+            background: var(--card-background);
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .main-content { min-width: 0; }
+
+        .portfolio-header {
+            position: relative;
+            padding: 60px 40px;
+            border-radius: var(--border-radius);
+            margin-bottom: 40px;
+            text-align: center;
+            overflow: hidden;
+            color: white;
+            background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .portfolio-header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 0 0 15px 0;
+        }
+
+        .portfolio-header p {
+            font-size: 1rem;
+            max-width: 600px;
+            margin: 0 auto;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 18px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .post-item {
+            background: var(--card-background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            position: relative;
+            transition: all var(--transition-speed) ease;
+            border: 1px solid transparent;
+        }
+        .post-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+            border-color: var(--primary-color);
+        }
+        .post-item.hidden { display: none; }
+
+        .post-thumbnail-wrapper {
+            position: relative;
+            aspect-ratio: 4 / 3;
+            background-color: #eee;
+        }
+        .post-thumbnail-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-speed) ease;
+        }
+        .post-item:hover .post-thumbnail-wrapper img {
+            transform: scale(1.1);
+        }
+
+        .post-content {
+            padding: 20px;
+        }
+
+        .post-content h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.25rem;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        .post-content h2 a {
+            color: var(--text-color);
+            text-decoration: none;
+        }
+        .post-content h2 a::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .post-meta {
+            font-size: 0.8rem;
+            color: var(--subtle-text-color);
+        }
+        
+        .categories .category {
+            background-image: linear-gradient(to right, #28a745, #20c997);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        /* --- Sidebar Styles (Copied from original, with minor adjustments) --- */
+        .search-section, .category-tree {
+            margin-bottom: 20px;
+        }
+        .search-section h3, .category-tree h3 {
+            margin-top: 0; margin-bottom: 15px; font-size: 1.2rem; font-weight: 600;
+            border-bottom: 2px solid var(--border-color); padding-bottom: 10px;
+        }
+        .search-input {
+            width: 100%; padding: 12px 15px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 0.95rem;
+            transition: all var(--transition-speed) ease; box-sizing: border-box; background-color: #f8f9fa;
+        }
+        .search-input:focus { outline: none; border-color: var(--primary-color); }
+        .category-tree-container { flex: 1; overflow-y: auto; padding-right: 10px; }
+        .category-item {
+             display: block; padding: 10px 15px; color: #555; text-decoration: none;
+             font-size: 0.95rem; cursor: pointer; transition: all var(--transition-speed) ease;
+             border-radius: 6px; margin-bottom: 5px; font-weight: 500;
+        }
+        .category-item:hover { background-color: #f1f5f8; color: var(--primary-color); }
+        .category-item.active { background-color: var(--primary-color); color: white; }
+        .filter-info, .search-info { font-weight: 500; margin-bottom: 24px; padding: 16px 20px; border-radius: var(--border-radius); border-left: 5px solid; display: none; }
+        .filter-info { background: #e7f3ff; border-color: var(--primary-color); color: #004085; }
+        .search-info { background: #e8f5e8; border-color: #28a745; color: #155724; }
+        .filter-info.active, .search-info.active { display: block; }
+
+        @media (max-width: 992px) {
+            .container { grid-template-columns: 1fr; }
+            .sidebar { position: static; order: -1; max-height: none; width: 100%; box-sizing: border-box; margin-bottom: 30px;}
+        }
+
+    </style>
+</head>
+<body>
+<div class="container">
+     <aside class="sidebar">
+        <div class="search-section">
+            <h3>搜尋作品</h3>
+            <input class="search-input" id="search-input" placeholder="風景、人像、城市..." type="text">
+        </div>
+
+        <div class="category-tree">
+            <h3>作品分類</h3>
+            <div class="category-tree-container">
+                <a href="#" class="category-item active" data-category-path="all">所有作品</a>
+                {{{CategoryTree}}}
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="portfolio-header">
+            <h1>攝影作品集</h1>
+            <p>共 <span id="total-count">{{PostCount}}</span> 個作品系列</p>
+        </header>
+
+        <div class="filter-info" id="filter-info">
+            正在顯示分類「<span id="filter-category"></span>」的作品
+        </div>
+
+        <div class="search-info" id="search-info">
+            搜尋結果：「<span id="search-query"></span>」
+        </div>
+
+        <div class="portfolio-grid" id="posts-container">
+            {{#each Posts}}
+            <article class="post-item" data-categories="{{CategoriesPlain}}" data-title="{{Title}}">
+                <div class="post-thumbnail-wrapper">
+                    {{{ThumbnailHTML}}}
+                </div>
+                <div class="post-content">
+                    <h2><a href="{{HtmlFilePath}}">{{Title}}</a></h2>
+                    <div class="post-meta">
+                        {{#if Categories}}
+                        <div class="categories">{{{Categories}}}</div>
+                        {{/if}}
+                        <span class="date">{{PublishedDate}}</span>
+                    </div>
+                </div>
+            </article>
+            {{/each}}
+        </div>
+    </main>
+</div>
+
+<script>
+    class BlogFilter {
+        constructor() {
+            this.allPosts = [];
+            this.currentCategoryFilter = null;
+            this.currentSearchQuery = null;
+            this.init();
+        }
+
+        init() {
+            this.allPosts = Array.from(document.querySelectorAll('.post-item'));
+            this.bindSearchEvents();
+            this.bindCategoryEvents();
+            this.bindFilterEvents();
+            this.updateStats(this.allPosts.length);
+        }
+
+        bindSearchEvents() {
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const clearSearchButton = document.getElementById('clear-search');
+            searchButton.addEventListener('click', () => this.performSearch());
+            searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.performSearch(); });
+            searchInput.addEventListener('input', (e) => { if (e.target.value.trim() === '') this.clearSearch(); });
+            clearSearchButton.addEventListener('click', () => this.clearSearch());
+        }
+
+        bindCategoryEvents() {
+            document.querySelectorAll('.category-toggle').forEach(toggle => {
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleCategory(toggle);
+                });
+            });
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('category-toggle')) return;
+                    const categoryPath = item.getAttribute('data-category-path');
+                    const categoryName = item.getAttribute('data-category-name');
+                    if (categoryPath && categoryName) this.filterByCategory(categoryPath, categoryName);
+                });
+            });
+            document.getElementById('reset-categories').addEventListener('click', () => this.resetCategories());
+        }
+
+        bindFilterEvents() {
+            document.getElementById('clear-filter').addEventListener('click', () => this.clearAllFilters());
+        }
+
+        performSearch() {
+            const query = document.getElementById('search-input').value.trim();
+            this.currentSearchQuery = query.toLowerCase();
+            this.applyFilters();
+        }
+
+        clearSearch() {
+            document.getElementById('search-input').value = '';
+            this.currentSearchQuery = null;
+            this.applyFilters();
+        }
+
+        filterByCategory(categoryPath, categoryName) {
+            this.currentCategoryFilter = categoryPath;
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll(`[data-category-path="${categoryPath}"]`).forEach(item => {
+                item.classList.add('active');
+                let parent = item.closest('.category-children');
+                while(parent) {
+                    parent.classList.add('expanded');
+                    const toggle = parent.previousElementSibling.querySelector('.category-toggle');
+                    if (toggle) toggle.classList.add('expanded');
+                    parent = parent.parentElement.closest('.category-children');
+                }
+            });
+            this.applyFilters();
+        }
+
+        resetCategories() {
+            this.currentCategoryFilter = null;
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            this.applyFilters();
+        }
+
+        clearAllFilters() {
+            document.getElementById('search-input').value = '';
+            this.currentSearchQuery = null;
+            this.currentCategoryFilter = null;
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            this.applyFilters();
+        }
+
+        applyFilters() {
+            let visibleCount = 0;
+            this.allPosts.forEach(post => {
+                const title = (post.dataset.title || '').toLowerCase();
+                const tags = (post.dataset.tags || '').toLowerCase();
+                const categories = (post.dataset.categories || '').toLowerCase();
+
+                let matchesSearch = true;
+                if (this.currentSearchQuery) {
+                    matchesSearch = title.includes(this.currentSearchQuery) ||
+                        tags.includes(this.currentSearchQuery) ||
+                        categories.includes(this.currentSearchQuery);
+                }
+
+                let matchesCategory = true;
+                if (this.currentCategoryFilter) {
+                    matchesCategory = (categories + '/').includes(this.currentCategoryFilter.toLowerCase() + '/');
+                }
+
+                const shouldShow = matchesSearch && matchesCategory;
+                post.classList.toggle('hidden', !shouldShow);
+                if (shouldShow) visibleCount++;
+            });
+
+            this.updateStats(visibleCount);
+            this.updateSearchUI(this.currentSearchQuery ? visibleCount : 0, this.currentSearchQuery);
+            const activeCategory = document.querySelector('.category-item.active');
+            this.updateCategoryUI(activeCategory ? activeCategory.dataset.categoryName : null);
+        }
+
+        toggleCategory(toggle) {
+            const children = toggle.closest('.category-item').nextElementSibling;
+            if (children && children.classList.contains('category-children')) {
+                children.classList.toggle('expanded');
+                toggle.classList.toggle('expanded');
+            }
+        }
+
+        updateSearchUI(visibleCount, query) {
+            const searchResults = document.getElementById('search-results');
+            const searchCount = document.getElementById('search-count');
+            const clearSearchButton = document.getElementById('clear-search');
+            const searchInfo = document.getElementById('search-info');
+            const searchQuery = document.getElementById('search-query');
+
+            searchResults.classList.toggle('active', !!query);
+            clearSearchButton.classList.toggle('active', !!query);
+            searchInfo.classList.toggle('active', !!query);
+            if (query) {
+                searchCount.textContent = visibleCount;
+                searchQuery.textContent = query;
+            }
+        }
+
+        updateCategoryUI(categoryName) {
+            const filterInfo = document.getElementById('filter-info');
+            const filterCategory = document.getElementById('filter-category');
+
+            filterInfo.classList.toggle('active', !!categoryName);
+            if (categoryName) {
+                filterCategory.textContent = categoryName;
+            }
+        }
+
+        updateStats(visibleCount) {
+            document.getElementById('visible-count').textContent = visibleCount;
+            const totalCount = this.allPosts.length;
+            const clearFilterButton = document.getElementById('clear-filter');
+            clearFilterButton.classList.toggle('hidden', visibleCount === totalCount);
+        }
+    }
+    
+    // 保持與您原始 index.html 相似的篩選邏輯，但適應新佈局
+    document.addEventListener('DOMContentLoaded', () => {
+        // 從文章內容中提取縮圖
+        document.querySelectorAll('.post-item').forEach(postItem => {
+            const contentHtml = postItem.querySelector('[data-content-holder]');
+            if (contentHtml) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = contentHtml.innerHTML;
+                const thumbnail = tempDiv.querySelector('.post-thumbnail');
+                const targetWrapper = postItem.querySelector('.post-thumbnail-wrapper');
+                if (thumbnail && targetWrapper) {
+                    targetWrapper.innerHTML = ''; // 清空佔位符
+                    targetWrapper.appendChild(thumbnail);
+                }
+                contentHtml.remove(); // 移除臨時內容容器
+            }
+        });
+
+        new BlogFilter();
+    });
+</script>
+</body>
+</html>
