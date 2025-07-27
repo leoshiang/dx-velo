@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Velo.Models;
@@ -44,12 +45,60 @@ public class TemplateService(
         return RenderDefaultPostHtml(post, htmlContent);
     }
 
+    private string ProcessConditionalBlocks(string template, BlogPost post)
+    {
+        // 處理 Categories 條件
+        template = ProcessIfBlock(template, "Categories", post.Categories.Count > 0,
+            () => GenerateCategoriesHtml(post.Categories),
+            () => string.Join(" / ", post.Categories));
+
+        // 處理 Tags 條件
+        template = ProcessIfBlock(template, "Tags", post.Tags.Count > 0,
+            () => GenerateTagsHtml(post.Tags),
+            () => string.Join(" ", post.Tags.Select(t => $"#{t}")));
+
+        // 處理 Author 條件
+        template = ProcessIfBlock(template, "Author", !string.IsNullOrEmpty(post.Author),
+            () => post.Author ?? string.Empty,
+            () => post.Author ?? string.Empty);
+
+        // 處理 FirstImage 條件
+        template = ProcessIfBlock(template, "FirstImage", !string.IsNullOrEmpty(post.FirstImageUrl),
+            () => $"<img src=\"{post.FirstImageUrl}\" alt=\"{post.Title}\" class=\"post-thumbnail post-image\">",
+            () => post.FirstImageUrl);
+
+        return template;
+    }
+
+    private string ProcessIfBlock(string template, string condition, bool isTrue,
+        Func<string> htmlValueProvider, Func<string> plainValueProvider)
+    {
+        var pattern = $@"{{{{#if\s+{condition}}}}}(.*?){{{{/if}}}}";
+        var regex = new Regex(pattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+        return regex.Replace(template, match =>
+        {
+            if (isTrue)
+            {
+                var content = match.Groups[1].Value;
+
+                // 在條件區塊內替換對應的變數
+                content = content.Replace($"{{{{{{{condition}}}}}}}", htmlValueProvider())
+                    .Replace($"{{{{{condition}Plain}}}}", plainValueProvider());
+
+                return content;
+            }
+
+            return string.Empty;
+        });
+    }
+
     private string GenerateCategoriesHtml(List<string> categories)
     {
         if (categories.Count == 0) return string.Empty;
 
         return string.Join("", categories.Select(category =>
-            $"<span class=\"category\">{category}</span>"));
+            $"<span class=\"badge bg-primary category\">{category}</span>"));
     }
 
     private string GenerateTagsHtml(List<string> tags)
@@ -57,7 +106,57 @@ public class TemplateService(
         if (tags.Count == 0) return string.Empty;
 
         return string.Join("", tags.Select(tag =>
-            $"<span class=\"tag\">#{tag}</span>"));
+            $"<span class=\"badge bg-secondary tag\">#{tag}</span>"));
+    }
+
+    private string ProcessVariablesInContent(string content)
+    {
+        // 這個方法會在條件塊內容中處理基本變數替換
+        // 實際的變數替換會在外層完成
+        return content;
+    }
+
+    private string ProcessEachBlock(string template, List<BlogPost> posts)
+    {
+        var pattern = @"{{#each\s+Posts}}(.*?){{/each}}";
+        var regex = new Regex(pattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+        return regex.Replace(template, match =>
+        {
+            var postTemplate = match.Groups[1].Value;
+            var postsHtml = new StringBuilder();
+
+            foreach (var post in posts)
+            {
+                var processedPost = RenderSinglePostInLoop(postTemplate, post);
+                postsHtml.AppendLine(processedPost);
+            }
+
+            return postsHtml.ToString();
+        });
+    }
+
+    private string RenderSinglePostInLoop(string postTemplate, BlogPost post)
+    {
+        var processed = postTemplate;
+
+        // 基本變數替換
+        processed = processed
+            .Replace("{{Title}}", post.Title)
+            .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
+            .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
+            .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
+            .Replace("{{Author}}", post.Author ?? string.Empty)
+            .Replace("{{CategoriesPlain}}", string.Join(" / ", post.Categories))
+            .Replace("{{TagsPlain}}", string.Join(" ", post.Tags.Select(t => $"#{t}")))
+            .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
+            .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString())
+            .Replace("{{Slug}}", post.Slug);
+
+        // 處理條件語法
+        processed = ProcessConditionalBlocks(processed, post);
+
+        return processed;
     }
 
     private string GenerateCategoryNodeHtml(CategoryNode node, string parentPath)
@@ -103,32 +202,6 @@ public class TemplateService(
         return GenerateCategoryNodeHtml(categoryTree, "");
     }
 
-    private string ProcessTemplateVariables(string template, List<BlogPost> posts, string categoryTreeHtml)
-    {
-        var postsJson = System.Text.Json.JsonSerializer.Serialize(posts.Select(p => new
-        {
-            Title = p.Title,
-            HtmlFilePath = p.HtmlFilePath,
-            PublishedDate = p.PublishedDate.ToString("yyyy-MM-dd"),
-            PublishedDateLong = p.PublishedDate.ToString("yyyy年MM月dd日"),
-            Author = p.Author ?? string.Empty,
-            Categories = GenerateCategoriesHtml(p.Categories),
-            CategoriesPlain = string.Join(" / ", p.Categories),
-            Tags = GenerateTagsHtml(p.Tags),
-            TagsPlain = string.Join(" ", p.Tags.Select(t => $"#{t}")),
-            FirstImageUrl = p.FirstImageUrl,
-            ImageCount = p.ImagePaths.Count,
-            Slug = p.Slug
-        }));
-
-        return template
-            .Replace("{{PostCount}}", posts.Count.ToString())
-            .Replace("{{{CategoryTree}}}", categoryTreeHtml)
-            .Replace("{{CategoryTree}}", categoryTreeHtml)
-            .Replace("{{GeneratedDate}}", DateTime.Now.ToString("yyyy年MM月dd日 HH:mm:ss"))
-            .Replace("{{PostsJSON}}", postsJson);
-    }
-
     private async Task<string> RenderCustomIndexAsync(IEnumerable<BlogPost> posts, CategoryNode categoryTree,
         string templatePath)
     {
@@ -137,25 +210,18 @@ public class TemplateService(
             var template = await _fileService.ReadFileAsync(templatePath);
             var postsList = posts.ToList();
 
+            // 基本變數替換
             var categoryTreeHtml = GenerateCategoryTreeHtml(categoryTree);
-            var processedTemplate = ProcessTemplateVariables(template, postsList, categoryTreeHtml);
+            template = template
+                .Replace("{{PostCount}}", postsList.Count.ToString())
+                .Replace("{{{CategoryTree}}}", categoryTreeHtml)
+                .Replace("{{CategoryTree}}", categoryTreeHtml)
+                .Replace("{{GeneratedDate}}", DateTime.Now.ToString("yyyy年MM月dd日 HH:mm:ss"));
 
-            // 如果模板包含 Handlebars 循環語法，處理 Posts 循環
-            if (processedTemplate.Contains("{{#each Posts}}"))
-            {
-                var postsHtml = string.Join("", postsList.Select(post =>
-                {
-                    var postTemplate = ExtractPostTemplate(processedTemplate);
-                    return RenderSinglePostInLoop(postTemplate, post);
-                }));
+            // 處理 Posts 循環
+            template = ProcessEachBlock(template, postsList);
 
-                processedTemplate = processedTemplate.Replace(
-                    System.Text.RegularExpressions.Regex.Match(processedTemplate, @"{{#each Posts}}.*?{{/each}}",
-                        System.Text.RegularExpressions.RegexOptions.Singleline).Value,
-                    postsHtml);
-            }
-
-            return processedTemplate;
+            return template;
         }
         catch (Exception ex)
         {
@@ -164,57 +230,26 @@ public class TemplateService(
         }
     }
 
-    private string ExtractPostTemplate(string template)
-    {
-        var match = System.Text.RegularExpressions.Regex.Match(template,
-            @"{{#each Posts}}(.*?){{/each}}",
-            System.Text.RegularExpressions.RegexOptions.Singleline);
-
-        return match.Success ? match.Groups[1].Value : "";
-    }
-
-    private string RenderSinglePostInLoop(string postTemplate, BlogPost post)
-    {
-        return postTemplate
-            .Replace("{{Title}}", post.Title)
-            .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
-            .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
-            .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
-            .Replace("{{Author}}", post.Author ?? string.Empty)
-            .Replace("{{{Categories}}}", GenerateCategoriesHtml(post.Categories))
-            .Replace("{{CategoriesPlain}}", string.Join(" / ", post.Categories))
-            .Replace("{{{Tags}}}", GenerateTagsHtml(post.Tags))
-            .Replace("{{TagsPlain}}", string.Join(" ", post.Tags.Select(t => $"#{t}")))
-            .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
-            .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString())
-            .Replace("{{Slug}}", post.Slug);
-    }
-
     private async Task<string> RenderCustomPostAsync(BlogPost post, string htmlContent, string templatePath)
     {
         try
         {
             var template = await _fileService.ReadFileAsync(templatePath);
 
-            var tagsHtml = post.Tags.Count > 0
-                ? string.Join("．", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"))
-                : string.Empty;
-
-            var categoriesHtml = post.Categories.Count > 0
-                ? string.Join("", post.Categories.Select(category => $"<span class=\"category\">{category}</span>"))
-                : string.Empty;
-
-            return template
+            // 基本變數替換
+            template = template
                 .Replace("{{Title}}", post.Title)
                 .Replace("{{{Content}}}", htmlContent)
                 .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
                 .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
                 .Replace("{{Slug}}", post.Slug)
                 .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
-                .Replace("{{{Tags}}}", tagsHtml)
-                .Replace("{{TagsPlain}}", post.Tags.Count > 0 ? string.Join(", ", post.Tags) : "")
-                .Replace("{{{Categories}}}", categoriesHtml)
-                .Replace("{{CategoriesPlain}}", post.Categories.Count > 0 ? string.Join(", ", post.Categories) : "");
+                .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString());
+
+            // 處理條件語法
+            template = ProcessConditionalBlocks(template, post);
+
+            return template;
         }
         catch (Exception ex)
         {
@@ -293,6 +328,10 @@ public class TemplateService(
         sb.AppendLine(
             "        .tag, .category { background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.8rem; }");
         sb.AppendLine("        .category { background: #28a745; }");
+        sb.AppendLine(
+            "        .badge.bg-primary { background: #007bff !important; }");
+        sb.AppendLine(
+            "        .badge.bg-secondary { background: #6c757d !important; }");
         sb.AppendLine(
             "        .category-tree h3 { margin-top: 0; margin-bottom: 15px; color: #333; font-size: 1.2rem; border-bottom: 2px solid #007bff; padding-bottom: 8px; }");
         sb.AppendLine("        .category-node { margin-bottom: 5px; }");

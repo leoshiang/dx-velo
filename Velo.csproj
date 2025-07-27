@@ -29,12 +29,6 @@
     <None Update="templates\index.html">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="templates\default\index.html">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="templates\default\post.html">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
     <None Update="templates\professional\index.html">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

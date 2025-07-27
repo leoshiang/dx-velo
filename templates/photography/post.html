@@ -347,8 +347,10 @@
     <div class="text-post-card">
         <h1 class="text-post-title">{{Title}}</h1>
         <div class="text-post-meta">
-            <span>PublishedDate</span>
-            <span><span class="category">旅遊</span></span>
+            <span>{{PublishedDate}}</span>
+            {{#if Categories}}
+            <span>{{{Categories}}}</span>
+            {{/if}}
         </div>
         <div class="text-post-content"></div>
     </div>
