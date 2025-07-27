@@ -9,7 +9,7 @@
   "BlogContentPath": "E:\\Dropbox\\攝影部落格",
   "BlogSettings": {
     "HtmlOutputPath": "E:\\攝影部落格輸出",
-    "TemplatePath": "C:\\tools\\velo\\templates\\photography",
+    "TemplatePath": ".\\templates\\default",
     "ImageOutputPath": "E:\\攝影部落格輸出\\images",
     "ClearOutputDirectoryOnStart": true,
     "AutoAddYamlHeader": true,

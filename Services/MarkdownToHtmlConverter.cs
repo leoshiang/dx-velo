@@ -1,7 +1,4 @@
-﻿using System.Web;
-using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Markdig;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -11,14 +8,15 @@ namespace Velo.Services;
 
 public class MarkdownToHtmlConverter(
     IBlogService blogService,
+    ITemplateService templateService,
+    IFileService fileService,
     IConfiguration configuration,
     ILogger<MarkdownToHtmlConverter> logger)
     : IMarkdownToHtmlService
 {
-    private readonly Dictionary<string, string> _imageMapping = new();
-    private readonly Dictionary<string, string> _mermaidPlaceholders = new();
+    private static readonly Regex ImageRegex = new(@"!\[.*?\]\((.*?)\)", RegexOptions.Compiled);
 
-    private readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseEmojiAndSmiley()
         .UseGenericAttributes()
@@ -29,1490 +27,467 @@ public class MarkdownToHtmlConverter(
         .UseMediaLinks()
         .Build();
 
+    private readonly IBlogService _blogService = blogService;
+    private readonly IConfiguration _configuration = configuration;
+    private readonly IFileService _fileService = fileService;
+
+    private readonly Dictionary<string, string> _imageMapping = new();
+    private readonly ILogger<MarkdownToHtmlConverter> _logger = logger;
+    private readonly ITemplateService _templateService = templateService;
+
     public async Task ConvertAndSaveAllPostsAsync()
     {
-        logger.LogInformation("開始轉換所有文章...");
+        _logger.LogInformation("開始轉換所有文章...");
 
         _imageMapping.Clear();
 
-        var posts = (await blogService.GetAllPostsAsync()).ToList();
-        logger.LogInformation("找到 {Count} 篇文章", posts.Count);
+        var posts = (await _blogService.GetAllPostsAsync()).ToList();
+        var categoryTree = await _blogService.GetCategoryTreeAsync();
 
-        var outputPath = configuration["BlogSettings:HtmlOutputPath"];
-        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"];
-        Directory.CreateDirectory(outputPath!);
-        Directory.CreateDirectory(imageOutputPath!);
+        _logger.LogInformation("找到 {Count} 篇文章", posts.Count);
 
-        // 1. 文章轉換 - 改為單執行緒循序處理
-        foreach (var post in posts)
-        {
-            try
-            {
-                var htmlContent = await ConvertToHtmlAsync(post);
-                await SaveHtmlFileAsync(post, htmlContent);
-                logger.LogInformation("已轉換: {Title}", post.Title);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
-            }
-        }
+        var outputPath = _configuration["BlogSettings:HtmlOutputPath"]!;
+        var imageOutputPath = _configuration["BlogSettings:ImageOutputPath"]!;
 
-        // 2. 複製圖片 - 改為單執行緒處理
-        await CopyMappedImagesAsync();
+        _fileService.EnsureDirectoryExists(outputPath);
+        _fileService.EnsureDirectoryExists(imageOutputPath);
 
-        // 3. 生成首頁 & 靜態資源
-        await GenerateIndexPageAsync(posts);
-        await CopyOtherStaticResourcesAsync();
+        // 轉換文章
+        var conversionTasks = posts.Select(ConvertAndSavePostAsync).ToArray();
+        await Task.WhenAll(conversionTasks);
 
-        logger.LogInformation("全部完成，文章 {Count} 篇，圖片 {ImageCount} 張",
+        // 複製圖片
+        await CopyImagesAsync();
+
+        // 生成首頁
+        await GenerateIndexPageAsync(posts, categoryTree);
+
+        _logger.LogInformation("轉換完成，文章 {Count} 篇，圖片 {ImageCount} 張",
             posts.Count, _imageMapping.Count);
     }
 
-    private string ConvertMarkdownToHtml(string markdown, string? markdownFilePath = null)
+    public Task<string> ConvertToHtmlAsync(string markdown, string? sourceFilePath = null)
     {
         try
         {
-            logger.LogDebug("開始轉換 Markdown，檔案路徑: {FilePath}", markdownFilePath);
+            _logger.LogDebug("開始轉換 Markdown，來源檔案: {SourceFile}", sourceFilePath);
 
-            // 先處理 Mermaid 程式碼區塊，用占位符替換
-            var processedMarkdown = ProcessMermaidCodeBlocks(markdown);
+            // 先處理圖片路徑
+            var processedMarkdown = ProcessImagePaths(markdown, sourceFilePath);
 
-            // 處理圖片路徑
-            processedMarkdown = ProcessImagePaths(processedMarkdown, markdownFilePath);
-
-            logger.LogDebug("處理 Mermaid 和圖片後的 Markdown");
+            _logger.LogDebug("處理後的 Markdown 內容預覽: {Preview}",
+                processedMarkdown.Length > 200 ? processedMarkdown.Substring(0, 200) + "..." : processedMarkdown);
 
             // 轉換為 HTML
-            var html = Markdown.ToHtml(processedMarkdown, _pipeline);
+            var html = Markdown.ToHtml(processedMarkdown, Pipeline);
 
-            // 恢復 Mermaid 占位符為實際 HTML
-            html = RestoreMermaidPlaceholders(html);
+            _logger.LogDebug("轉換完成的 HTML 內容預覽: {Preview}",
+                html.Length > 200 ? html.Substring(0, 200) + "..." : html);
 
-            // 後處理：確保圖片標籤正確
-            html = PostProcessImageTags(html);
-
-            logger.LogDebug("轉換後的 HTML 長度: {Length}", html.Length);
-
-            return html;
+            return Task.FromResult(html);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "轉換 Markdown 為 HTML 時發生錯誤");
+            _logger.LogError(ex, "Markdown 轉 HTML 失敗: {FilePath}", sourceFilePath);
             throw;
         }
     }
 
-    private async Task<string> ConvertToHtmlAsync(BlogPost post)
+    private string CleanFileProtocolPaths(string html)
+    {
+        // 更全面的清理 file:// 路徑
+        var patterns = new[]
+        {
+            // 處理 src 屬性中的 file:// 路徑
+            (@"src=[""']file:///([^""']*)[""']", "src=\"images/{0}\""),
+
+            // 處理 data-src 屬性中的 file:// 路徑  
+            (@"data-src=[""']file:///([^""']*)[""']", "data-src=\"images/{0}\""),
+
+            // 處理任何屬性中的 file:// 路徑
+            (@"=[""']file:///([^""']*)[""']", "=\"images/{0}\"")
+        };
+
+        var cleanedHtml = html;
+
+        foreach (var (pattern, replacement) in patterns)
+        {
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            cleanedHtml = regex.Replace(cleanedHtml, match =>
+            {
+                var encodedPath = match.Groups[1].Value;
+                string fileName;
+
+                try
+                {
+                    // URL 解碼路徑
+                    var decodedPath = Uri.UnescapeDataString(encodedPath);
+                    fileName = Path.GetFileName(decodedPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "URL 解碼失敗: {Path}", encodedPath);
+                    fileName = Path.GetFileName(encodedPath);
+                }
+
+                _logger.LogWarning("清理 file:// 路徑: {OriginalPath} -> images/{FileName}",
+                    match.Value, fileName);
+
+                return string.Format(replacement, fileName);
+            });
+        }
+
+        // 額外處理：確保所有本地圖片路徑都有 images/ 前綴
+        var localImageRegex = new Regex(@"src=[""']([^""']+\.(?:jpg|jpeg|png|gif|webp|svg))[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        cleanedHtml = localImageRegex.Replace(cleanedHtml, match =>
+        {
+            var imagePath = match.Groups[1].Value;
+
+            // 如果是網路圖片或已經有 images/ 前綴，跳過
+            if (imagePath.StartsWith("http") || imagePath.StartsWith("images/") || imagePath.StartsWith("/"))
+            {
+                return match.Value;
+            }
+
+            // 為本地圖片添加 images/ 前綴
+            return $"src=\"images/{imagePath}\"";
+        });
+
+        return cleanedHtml;
+    }
+
+    private async Task ConvertAndSavePostAsync(BlogPost post)
     {
         try
         {
-            logger.LogInformation("開始轉換文章: {Title}", post.Title);
+            _logger.LogDebug("開始處理文章: {Title}", post.Title);
 
             // 清空之前的圖片路徑
-            post.ImagePaths.Clear();
+            post.ClearImages();
 
-            var htmlContent = ConvertMarkdownToHtml(post.ContentHtml, post.SourceFilePath);
+            // 轉換 Markdown 為 HTML
+            var htmlContent = await ConvertToHtmlAsync(post.ContentHtml, post.SourceFilePath);
 
-            // 從轉換後的 HTML 中提取圖片路徑並填入 BlogPost
+            // 多次清理 - 確保徹底清除 file:// 路徑
+            htmlContent = CleanFileProtocolPaths(htmlContent);
+
+            // 提取圖片路徑
             ExtractImagePathsFromHtml(post, htmlContent);
 
-            // 檢查是否有自定義模板
-            var templatePath = Path.Combine(configuration["BlogSettings:TemplatePath"] ?? "", "post.html");
-            if (File.Exists(templatePath))
+            // 使用模板渲染
+            var finalHtml = await _templateService.RenderPostAsync(post, htmlContent);
+
+            // 多層清理 - 處理模板可能生成的 file:// 路徑
+            for (int i = 0; i < 3; i++) // 執行 3 次清理
             {
-                return await GenerateCustomPostHtml(post, htmlContent, templatePath);
+                var beforeClean = finalHtml;
+                finalHtml = CleanFileProtocolPaths(finalHtml);
+
+                // 如果沒有變化，跳出循環
+                if (beforeClean == finalHtml) break;
             }
 
-            // 使用預設模板
-            return GenerateDefaultPostHtml(post, htmlContent);
+            // 儲存 HTML 檔案
+            var outputPath = Path.Combine(_configuration["BlogSettings:HtmlOutputPath"]!, post.HtmlFilePath);
+            await _fileService.WriteFileAsync(outputPath, finalHtml);
+
+            _logger.LogDebug("已轉換: {Title}，圖片數量: {ImageCount}", post.Title, post.ImagePaths.Count);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "轉換文章 {Title} 為 HTML 時發生錯誤", post.Title);
+            _logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
             throw;
         }
     }
 
-    /// <summary>
-    /// 從 HTML 內容中提取圖片路徑並填入 BlogPost.ImagePaths
-    /// </summary>
-    private void ExtractImagePathsFromHtml(BlogPost post, string htmlContent)
+    private async Task CopyImagesAsync()
     {
-        try
+        _logger.LogInformation("開始複製圖片...");
+
+        var imageOutputPath = _configuration["BlogSettings:ImageOutputPath"]!;
+        _fileService.EnsureDirectoryExists(imageOutputPath);
+
+        var copyTasks = _imageMapping.Select(async kvp =>
         {
-            // 使用正規表達式找出所有 img 標籤的 src 屬性
-            var imgPattern = @"<img[^>]+src=[""']([^""']+)[""'][^>]*>";
-            var regex = new Regex(imgPattern, RegexOptions.IgnoreCase);
-            var matches = regex.Matches(htmlContent);
+            var sourcePath = kvp.Key;
+            var fileName = kvp.Value; // 現在只是檔名，不包含路徑
+            var destinationPath = Path.Combine(imageOutputPath, fileName);
 
-            foreach (Match match in matches)
-            {
-                var imageSrc = match.Groups[1].Value;
-
-                // 排除網路圖片 (以 http 開頭的)
-                if (!imageSrc.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                {
-                    // 確保路徑格式正確 (使用正斜線)
-                    var normalizedPath = imageSrc.Replace('\\', '/');
-
-                    if (!post.ImagePaths.Contains(normalizedPath))
-                    {
-                        post.ImagePaths.Add(normalizedPath);
-                        logger.LogDebug("添加圖片路徑到文章 {Title}: {ImagePath}", post.Title, normalizedPath);
-                    }
-                }
-            }
-
-            logger.LogInformation("文章 {Title} 共找到 {Count} 張圖片", post.Title, post.ImagePaths.Count);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "提取文章 {Title} 的圖片路徑時發生錯誤", post.Title);
-        }
-    }
-
-    private async Task CopyMappedImagesAsync()
-    {
-        logger.LogInformation("開始複製圖片...");
-
-        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"];
-
-        // 改為單執行緒循序處理，避免 Task.Run 和 Task.WhenAll
-        foreach (var (originalPath, targetFileName) in _imageMapping)
-        {
             try
             {
-                var targetPath = Path.Combine(imageOutputPath!, targetFileName);
-
-                if (File.Exists(originalPath))
-                {
-                    var targetDir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(targetDir))
-                    {
-                        Directory.CreateDirectory(targetDir);
-                    }
-
-                    await using var sourceStream = File.OpenRead(originalPath);
-                    await using var targetStream = File.Create(targetPath);
-                    await sourceStream.CopyToAsync(targetStream);
-
-                    logger.LogDebug("已複製圖片: {OriginalPath} -> {TargetPath}", originalPath, targetPath);
-                }
-                else
-                {
-                    logger.LogWarning("圖片檔案不存在: {Path}", originalPath);
-                }
+                await _fileService.CopyFileAsync(sourcePath, destinationPath);
+                _logger.LogDebug("圖片複製成功: {Source} -> {Destination}", sourcePath, destinationPath);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "複製圖片失敗: {OriginalPath}", originalPath);
+                _logger.LogError(ex, "圖片複製失敗: {Source} -> {Destination}", sourcePath, destinationPath);
             }
-        }
+        });
 
-        logger.LogInformation("圖片複製完成");
+        await Task.WhenAll(copyTasks);
+        _logger.LogInformation("圖片複製完成");
     }
 
-
-    private Task CopyOtherStaticResourcesAsync()
+    private void ExtractImagePathsFromHtml(BlogPost post, string htmlContent)
     {
-        try
+        var imgPattern = @"<img[^>]+src=[""']([^""']+)[""'][^>]*>";
+        var regex = new Regex(imgPattern, RegexOptions.IgnoreCase);
+        var matches = regex.Matches(htmlContent);
+
+        // 清空之前的圖片路徑
+        post.ClearImages();
+
+        foreach (Match match in matches)
         {
-            logger.LogInformation("開始複製靜態資源...");
+            var imageSrc = match.Groups[1].Value;
 
-            var outputPath = configuration["BlogSettings:HtmlOutputPath"];
-            var imageOutputPath = configuration["BlogSettings:ImageOutputPath"];
-            Debug.Assert(outputPath != null, nameof(outputPath) + " != null");
-            Debug.Assert(imageOutputPath != null, nameof(imageOutputPath) + " != null");
-
-            // 確保圖片輸出目錄存在
-            if (!Directory.Exists(imageOutputPath))
+            // 跳過 file:// 路徑（已經被清理掉了，但保留檢查）
+            if (imageSrc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
-                Directory.CreateDirectory(imageOutputPath);
+                _logger.LogWarning("跳過 file:// 路徑: {ImagePath}", imageSrc);
+                continue;
             }
 
-            // 複製圖片檔案到對應的分類目錄
-            foreach (var (originalPath, relativePath) in _imageMapping)
+            // 處理網路圖片
+            if (imageSrc.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                var targetPath = Path.Combine(outputPath, relativePath);
-                var targetDir = Path.GetDirectoryName(targetPath);
-
-                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                post.AddImagePath(imageSrc);
+            }
+            // 處理本地圖片
+            else if (!Path.IsPathFullyQualified(imageSrc))
+            {
+                // 如果路徑已經包含 images/ 前綴，直接使用
+                if (imageSrc.StartsWith("images/"))
                 {
-                    Directory.CreateDirectory(targetDir);
+                    post.AddImagePath(imageSrc);
                 }
-
-                if (File.Exists(originalPath))
-                {
-                    File.Copy(originalPath, targetPath, overwrite: true);
-                    logger.LogDebug("複製圖片: {Original} -> {Target}", originalPath, targetPath);
-                }
-            }
-
-            logger.LogInformation("靜態資源複製完成，共複製 {Count} 個檔案", _imageMapping.Count);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "複製靜態資源時發生錯誤");
-            throw;
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private string FindMappedImagePath(string originalSrc)
-    {
-        try
-        {
-            // 先解碼 URL 編碼
-            var decodedSrc = Uri.UnescapeDataString(originalSrc);
-
-            // 嘗試直接查找映射
-            foreach (var (originalPath, mappedPath) in _imageMapping)
-            {
-                // 檢查原始路徑是否匹配
-                if (originalPath.EndsWith(decodedSrc.Replace("./", "")) ||
-                    originalPath.EndsWith(decodedSrc) ||
-                    Path.GetFileName(originalPath) == Path.GetFileName(decodedSrc))
-                {
-                    return mappedPath;
-                }
-            }
-
-            // 如果沒有找到直接匹配，嘗試模糊匹配
-            var fileName = Path.GetFileName(decodedSrc);
-            foreach (var (originalPath, mappedPath) in _imageMapping)
-            {
-                if (Path.GetFileName(originalPath) == fileName)
-                {
-                    return mappedPath;
-                }
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "查找映射路徑時發生錯誤: {Src}", originalSrc);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 生成麵包屑導航
-    /// </summary>
-    private string GenerateBreadcrumb(List<string> categories, string backToIndexPath)
-    {
-        var breadcrumbs = new List<string>();
-
-        // 首頁連結
-        var indexPath = backToIndexPath;
-        breadcrumbs.Add($"<a href=\"{indexPath}\">首頁</a>");
-
-        // 分類層級
-        var currentPath = "";
-        var levelUp = categories.Count;
-
-        for (int i = 0; i < categories.Count; i++)
-        {
-            currentPath += SanitizePath(categories[i]);
-            levelUp--;
-
-            if (i < categories.Count - 1)
-            {
-                // 中間層級，可點擊
-                var categoryIndexPath = string.Join("", Enumerable.Repeat("../", levelUp)) + "index.html";
-                breadcrumbs.Add($"<a href=\"{categoryIndexPath}\">{categories[i]}</a>");
-            }
-            else
-            {
-                // 最後一層，當前頁面，不可點擊
-                breadcrumbs.Add($"<span>{categories[i]}</span>");
-            }
-
-            if (i < categories.Count - 1)
-            {
-                currentPath += "/";
-            }
-        }
-
-        return string.Join(" > ", breadcrumbs);
-    }
-
-    private string GenerateCategoryNodeHtml(CategoryNode node, string parentPath)
-    {
-        var sb = new StringBuilder();
-
-        foreach (var child in node.Children)
-        {
-            var currentPath = string.IsNullOrEmpty(parentPath) ? child.Name : $"{parentPath}/{child.Name}";
-            var hasChildren = child.Children.Count > 0;
-
-            sb.AppendLine("<div class=\"category-node\">");
-
-            // 分類項目
-            sb.AppendLine(
-                $"  <div class=\"category-item\" data-category-path=\"{currentPath}\" data-category-name=\"{child.Name}\">");
-            sb.AppendLine($"    <span class=\"category-name\">");
-
-            // 如果有子分類，添加展開/收合按鈕
-            if (hasChildren)
-            {
-                sb.AppendLine($"      <span class=\"category-toggle\">▶</span>");
-            }
-
-            // 根據是否有子分類添加圖示
-            if (hasChildren)
-            {
-                sb.AppendLine($"      📁 {child.Name}");
-            }
-            else
-            {
-                sb.AppendLine($"      📄 {child.Name}");
-            }
-
-            sb.AppendLine("    </span>");
-
-            // 只有當文章數量大於 0 時才顯示數字
-            if (child.PostCount > 0)
-            {
-                sb.AppendLine($"    <span class=\"category-count\">{child.PostCount}</span>");
-            }
-
-            sb.AppendLine("  </div>");
-
-            // 遞歸處理子分類
-            if (hasChildren)
-            {
-                sb.AppendLine("  <div class=\"category-children\">");
-                sb.AppendLine(GenerateCategoryNodeHtml(child, currentPath));
-                sb.AppendLine("  </div>");
-            }
-
-            sb.AppendLine("</div>");
-        }
-
-        return sb.ToString();
-    }
-
-    private string GenerateCategoryTreeHtml(CategoryNode categoryTree)
-    {
-        try
-        {
-            if (categoryTree.Children.Count == 0)
-            {
-                return "<p class=\"no-categories\">📝 尚無分類</p>";
-            }
-
-            return GenerateCategoryNodeHtml(categoryTree, "");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "生成分類樹 HTML 時發生錯誤");
-            return "<p class=\"error\">⚠️ 分類樹載入失敗</p>";
-        }
-    }
-
-    private async Task GenerateCustomIndexPageAsync(List<BlogPost> posts, string templatePath)
-    {
-        try
-        {
-            var template = await File.ReadAllTextAsync(templatePath, Encoding.UTF8);
-            logger.LogInformation("使用自訂模板生成首頁: {TemplatePath}", templatePath);
-
-            // 取得分類樹
-            var categoryTree = await blogService.GetCategoryTreeAsync();
-            var categoryTreeHtml = GenerateCategoryTreeHtml(categoryTree);
-
-            // 處理模板語法
-            var processedTemplate = ProcessEachPostsSyntax(template, posts);
-            processedTemplate = ProcessConditionalSyntax(processedTemplate,
-                posts.SelectMany(p => p.Tags).Distinct().ToList(),
-                posts.SelectMany(p => p.Categories).Distinct().ToList());
-
-            // 替換變數
-            var htmlContent = processedTemplate
-                .Replace("{{PostCount}}", posts.Count.ToString())
-                .Replace("{{{CategoryTree}}}", categoryTreeHtml)
-                .Replace("{{CategoryTree}}", categoryTreeHtml);
-
-            var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
-            await File.WriteAllTextAsync(outputPath, htmlContent, Encoding.UTF8);
-
-            logger.LogInformation("自訂首頁已生成: {OutputPath}", outputPath);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "生成自訂首頁時發生錯誤");
-            throw;
-        }
-    }
-
-    private async Task<string> GenerateCustomPostHtml(BlogPost post, string htmlContent, string templatePath)
-    {
-        try
-        {
-            var template = await File.ReadAllTextAsync(templatePath, Encoding.UTF8);
-            logger.LogInformation("使用自訂模板: {TemplatePath}", templatePath);
-
-            var tagsHtml = string.Empty;
-            if (post.Tags.Count > 0)
-            {
-                tagsHtml = string.Join("．", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
-            }
-
-            var categoriesHtml = string.Empty;
-            if (post.Categories.Count > 0)
-            {
-                categoriesHtml = string.Join("",
-                    post.Categories.Select(category => $"<span class=\"category\">{category}</span>"));
-            }
-
-            var processedTemplate = ProcessConditionalSyntax(template, post.Tags, post.Categories);
-
-            return processedTemplate
-                .Replace("{{Title}}", post.Title)
-                .Replace("{{{Content}}}", htmlContent)
-                .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
-                .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
-                .Replace("{{Slug}}", post.Slug)
-                .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
-                .Replace("{{{Tags}}}", tagsHtml)
-                .Replace("{{TagsPlain}}", post.Tags.Count > 0 ? string.Join(", ", post.Tags) : "")
-                .Replace("{{{Categories}}}", categoriesHtml)
-                .Replace("{{CategoriesPlain}}", post.Categories.Count > 0 ? string.Join(", ", post.Categories) : "");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "生成自訂文章 HTML 時發生錯誤");
-            throw;
-        }
-    }
-
-    private async Task GenerateDefaultIndexPageAsync(IEnumerable<BlogPost> posts)
-    {
-        try
-        {
-            var postsList = posts.ToList();
-            logger.LogInformation("生成預設首頁，文章數量: {Count}", postsList.Count);
-
-            // 取得分類樹
-            var categoryTree = await blogService.GetCategoryTreeAsync();
-            var categoryTreeHtml = GenerateCategoryTreeHtml(categoryTree);
-
-            var postsHtml = string.Join("", postsList.Select(post =>
-            {
-                var tagsHtml = string.Empty;
-                if (post.Tags.Count > 0)
-                {
-                    tagsHtml = string.Join("", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
-                }
-
-                var categoriesHtml = string.Empty;
-                if (post.Categories.Count > 0)
-                {
-                    categoriesHtml = string.Join("",
-                        post.Categories.Select(category => $"<span class=\"category\">{category}</span>"));
-                }
-
-                var categoriesPlain = post.Categories.Count > 0 ? string.Join("/", post.Categories) : "";
-
-                return $"""
-                        <article class="post-item" data-categories="{categoriesPlain}">
-                            <h2><a href="{post.HtmlFilePath}">{post.Title}</a></h2>
-                            <div class="post-meta">
-                                <span class="date">{post.PublishedDate:yyyy-MM-dd}</span>
-                                {(post.Categories.Count > 0 ? $"<div class=\"categories\">{categoriesHtml}</div>" : "")}
-                                {(post.Tags.Count > 0 ? $"<div class=\"tags\">{tagsHtml}</div>" : "")}
-                            </div>
-                        </article>
-                        """;
-            }));
-
-            var defaultIndexHtml = $$"""
-                                     <!DOCTYPE html>
-                                     <html lang="zh-TW">
-                                     <head>
-                                         <meta charset="UTF-8">
-                                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                         <title>LEOSHIANG 的部落格</title>
-                                         <style>
-                                             body { 
-                                                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
-                                                 line-height: 1.6; 
-                                                 margin: 0; 
-                                                 padding: 20px; 
-                                                 background-color: #f8f9fa; 
-                                             }
-                                             .container { 
-                                                 max-width: 1200px; 
-                                                 margin: 0 auto; 
-                                                 display: grid; 
-                                                 grid-template-columns: 1fr 300px; 
-                                                 gap: 40px; 
-                                             }
-                                             .sidebar { 
-                                                 background: white; 
-                                                 padding: 20px; 
-                                                 border-radius: 8px; 
-                                                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-                                                 height: fit-content; 
-                                                 position: sticky; 
-                                                 top: 20px; 
-                                             }
-                                             .main-content { 
-                                                 background: white; 
-                                                 padding: 30px; 
-                                                 border-radius: 8px; 
-                                                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-                                             }
-                                             .category-tree { 
-                                                 margin-bottom: 30px; 
-                                             }
-                                             .category-tree h3 { 
-                                                 margin-top: 0; 
-                                                 margin-bottom: 15px; 
-                                                 color: #333; 
-                                                 font-size: 1.2rem; 
-                                                 border-bottom: 2px solid #007bff; 
-                                                 padding-bottom: 8px; 
-                                             }
-                                             .category-node { 
-                                                 margin-bottom: 5px; 
-                                             }
-                                             .category-item { 
-                                                 display: flex; 
-                                                 align-items: center; 
-                                                 justify-content: space-between; 
-                                                 padding: 5px 0; 
-                                                 color: #555; 
-                                                 font-size: 0.9rem; 
-                                                 cursor: pointer;
-                                                 transition: background-color 0.2s ease;
-                                                 border-radius: 4px;
-                                                 padding: 8px 10px;
-                                             }
-                                             .category-item:hover {
-                                                 background-color: #f8f9fa;
-                                             }
-                                             .category-item.active {
-                                                 background-color: #007bff;
-                                                 color: white;
-                                             }
-                                             .category-item.active .category-count {
-                                                 background-color: white;
-                                                 color: #007bff;
-                                             }
-                                             .category-name { 
-                                                 font-weight: 500; 
-                                                 display: flex;
-                                                 align-items: center;
-                                                 gap: 5px;
-                                             }
-                                             .category-toggle {
-                                                 font-size: 0.8rem;
-                                                 color: #6c757d;
-                                                 cursor: pointer;
-                                                 transition: transform 0.2s ease;
-                                                 margin-right: 5px;
-                                             }
-                                             .category-toggle.expanded {
-                                                 transform: rotate(90deg);
-                                             }
-                                             .category-count { 
-                                                 background: #007bff; 
-                                                 color: white; 
-                                                 padding: 2px 6px; 
-                                                 border-radius: 10px; 
-                                                 font-size: 0.8rem; 
-                                             }
-                                             .category-children { 
-                                                 margin-left: 20px; 
-                                                 border-left: 2px solid #e9ecef; 
-                                                 padding-left: 10px; 
-                                                 display: none;
-                                             }
-                                             .category-children.expanded {
-                                                 display: block;
-                                             }
-                                             .post-item { 
-                                                 margin-bottom: 30px; 
-                                                 padding-bottom: 20px; 
-                                                 border-bottom: 1px solid #e9ecef; 
-                                                 transition: opacity 0.3s ease, transform 0.3s ease;
-                                             }
-                                             .post-item:last-child { 
-                                                 border-bottom: none; 
-                                             }
-                                             .post-item.hidden {
-                                                 display: none;
-                                             }
-                                             .post-item h2 { 
-                                                 margin-bottom: 10px; 
-                                                 font-size: 1.5rem; 
-                                             }
-                                             .post-item h2 a { 
-                                                 color: #333; 
-                                                 text-decoration: none; 
-                                                 transition: color 0.3s ease; 
-                                             }
-                                             .post-item h2 a:hover { 
-                                                 color: #007bff; 
-                                             }
-                                             .post-meta { 
-                                                 color: #666; 
-                                                 font-size: 0.9rem; 
-                                                 display: flex; 
-                                                 flex-wrap: wrap; 
-                                                 gap: 15px; 
-                                                 align-items: center; 
-                                             }
-                                             .tag, .category { 
-                                                 background: #007bff; 
-                                                 color: white; 
-                                                 padding: 3px 8px; 
-                                                 border-radius: 12px; 
-                                                 margin-right: 5px; 
-                                                 font-size: 0.8rem; 
-                                             }
-                                             .category { 
-                                                 background: #28a745; 
-                                             }
-                                             .blog-header { 
-                                                 margin-bottom: 30px; 
-                                                 text-align: center; 
-                                             }
-                                             .blog-header h1 { 
-                                                 color: #333; 
-                                                 margin-bottom: 10px; 
-                                             }
-                                             .blog-stats { 
-                                                 color: #666; 
-                                                 font-size: 0.9rem; 
-                                                 display: flex;
-                                                 justify-content: center;
-                                                 gap: 20px;
-                                                 align-items: center;
-                                             }
-                                             .clear-filter {
-                                                 background: #6c757d;
-                                                 color: white;
-                                                 border: none;
-                                                 padding: 5px 10px;
-                                                 border-radius: 4px;
-                                                 font-size: 0.8rem;
-                                                 cursor: pointer;
-                                                 transition: background-color 0.2s ease;
-                                             }
-                                             .clear-filter:hover {
-                                                 background: #5a6268;
-                                             }
-                                             .clear-filter.hidden {
-                                                 display: none;
-                                             }
-                                             .filter-info {
-                                                 color: #007bff;
-                                                 font-weight: bold;
-                                                 margin-bottom: 20px;
-                                                 padding: 10px;
-                                                 background: #e7f3ff;
-                                                 border-radius: 4px;
-                                                 display: none;
-                                             }
-                                             .filter-info.active {
-                                                 display: block;
-                                             }
-                                             @media (max-width: 768px) {
-                                                 .container { 
-                                                     grid-template-columns: 1fr; 
-                                                     gap: 20px; 
-                                                 }
-                                                 .sidebar { 
-                                                     position: static; 
-                                                     order: -1; 
-                                                 }
-                                                 body { 
-                                                     padding: 10px; 
-                                                 }
-                                             }
-                                         </style>
-                                     </head>
-                                     <body>
-                                         <div class="container">
-                                             <main class="main-content">
-                                                 <header class="blog-header">
-                                                     <h1>LEOSHIANG 的部落格</h1>
-                                                     <div class="blog-stats">
-                                                         <span>📝 文章總數: <span id="total-count">{{postsList.Count}}</span></span>
-                                                         <span>🔍 顯示: <span id="visible-count">{{postsList.Count}}</span> 篇</span>
-                                                         <button class="clear-filter hidden" id="clear-filter">清除篩選</button>
-                                                     </div>
-                                                 </header>
-                                                 
-                                                 <div class="filter-info" id="filter-info">
-                                                     正在顯示分類「<span id="filter-category"></span>」的文章
-                                                 </div>
-
-                                                 <div class="posts" id="posts-container">
-                                                     {{postsHtml}}
-                                                 </div>
-                                             </main>
-                                             
-                                             <aside class="sidebar">
-                                                 <div class="category-tree">
-                                                     <h3>📁 分類目錄</h3>
-                                                     {{categoryTreeHtml}}
-                                                 </div>
-                                             </aside>
-                                         </div>
-
-                                         <script>
-                                             // 分類樹功能
-                                             class CategoryTree {
-                                                 constructor() {
-                                                     this.currentFilter = null;
-                                                     this.allPosts = [];
-                                                     this.init();
-                                                 }
-
-                                                 init() {
-                                                     // 收集所有文章
-                                                     this.allPosts = Array.from(document.querySelectorAll('.post-item'));
-                                                     
-                                                     // 綁定分類項目點擊事件
-                                                     this.bindCategoryEvents();
-                                                     
-                                                     // 綁定清除篩選按鈕
-                                                     document.getElementById('clear-filter').addEventListener('click', () => {
-                                                         this.clearFilter();
-                                                     });
-                                                 }
-
-                                                 bindCategoryEvents() {
-                                                     // 綁定展開/收合事件
-                                                     document.querySelectorAll('.category-toggle').forEach(toggle => {
-                                                         toggle.addEventListener('click', (e) => {
-                                                             e.stopPropagation();
-                                                             this.toggleCategory(toggle);
-                                                         });
-                                                     });
-
-                                                     // 綁定分類篩選事件
-                                                     document.querySelectorAll('.category-item').forEach(item => {
-                                                         item.addEventListener('click', (e) => {
-                                                             // 如果點擊的是展開按鈕，不執行篩選
-                                                             if (e.target.classList.contains('category-toggle')) {
-                                                                 return;
-                                                             }
-                                                             
-                                                             const categoryPath = item.getAttribute('data-category-path');
-                                                             const categoryName = item.getAttribute('data-category-name');
-                                                             
-                                                             if (categoryPath && categoryName) {
-                                                                 this.filterByCategory(categoryPath, categoryName);
-                                                             }
-                                                         });
-                                                     });
-                                                 }
-
-                                                 toggleCategory(toggle) {
-                                                     const categoryNode = toggle.closest('.category-node');
-                                                     const children = categoryNode.querySelector('.category-children');
-                                                     
-                                                     if (children) {
-                                                         const isExpanded = children.classList.contains('expanded');
-                                                         
-                                                         if (isExpanded) {
-                                                             children.classList.remove('expanded');
-                                                             toggle.classList.remove('expanded');
-                                                         } else {
-                                                             children.classList.add('expanded');
-                                                             toggle.classList.add('expanded');
-                                                         }
-                                                     }
-                                                 }
-
-                                                 filterByCategory(categoryPath, categoryName) {
-                                                     this.currentFilter = categoryPath;
-                                                     
-                                                     // 移除之前的活動狀態
-                                                     document.querySelectorAll('.category-item').forEach(item => {
-                                                         item.classList.remove('active');
-                                                     });
-                                                     
-                                                     // 添加當前活動狀態
-                                                     document.querySelectorAll(`[data-category-path="${categoryPath}"]`).forEach(item => {
-                                                         item.classList.add('active');
-                                                     });
-
-                                                     // 篩選文章
-                                                     let visibleCount = 0;
-                                                     this.allPosts.forEach(post => {
-                                                         const postCategories = post.getAttribute('data-categories') || '';
-                                                         const shouldShow = postCategories.includes(categoryPath);
-                                                         
-                                                         if (shouldShow) {
-                                                             post.classList.remove('hidden');
-                                                             visibleCount++;
-                                                         } else {
-                                                             post.classList.add('hidden');
-                                                         }
-                                                     });
-
-                                                     // 更新統計信息
-                                                     this.updateStats(visibleCount, categoryName);
-                                                 }
-
-                                                 clearFilter() {
-                                                     this.currentFilter = null;
-                                                     
-                                                     // 移除所有活動狀態
-                                                     document.querySelectorAll('.category-item').forEach(item => {
-                                                         item.classList.remove('active');
-                                                     });
-                                                     
-                                                     // 顯示所有文章
-                                                     this.allPosts.forEach(post => {
-                                                         post.classList.remove('hidden');
-                                                     });
-                                                     
-                                                     // 更新統計信息
-                                                     this.updateStats(this.allPosts.length, null);
-                                                 }
-
-                                                 updateStats(visibleCount, categoryName) {
-                                                     const visibleCountElement = document.getElementById('visible-count');
-                                                     const clearFilterButton = document.getElementById('clear-filter');
-                                                     const filterInfo = document.getElementById('filter-info');
-                                                     const filterCategory = document.getElementById('filter-category');
-                                                     
-                                                     visibleCountElement.textContent = visibleCount;
-                                                     
-                                                     if (categoryName) {
-                                                         clearFilterButton.classList.remove('hidden');
-                                                         filterInfo.classList.add('active');
-                                                         filterCategory.textContent = categoryName;
-                                                     } else {
-                                                         clearFilterButton.classList.add('hidden');
-                                                         filterInfo.classList.remove('active');
-                                                     }
-                                                 }
-                                             }
-
-                                             // 初始化分類樹
-                                             document.addEventListener('DOMContentLoaded', () => {
-                                                 new CategoryTree();
-                                             });
-                                         </script>
-                                     </body>
-                                     </html>
-                                     """;
-
-            var htmlOutputPath = configuration["BlogSettings:HtmlOutputPath"];
-            Debug.Assert(htmlOutputPath != null, nameof(htmlOutputPath) + " != null");
-            var outputPath = Path.Combine(htmlOutputPath, "index.html");
-            await File.WriteAllTextAsync(outputPath, defaultIndexHtml, Encoding.UTF8);
-
-            logger.LogInformation("預設首頁已生成: {OutputPath}", outputPath);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "生成預設首頁時發生錯誤");
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 產生單篇文章的預設 HTML（與 index.html 版面一致，右側 TOC + 返回首頁）
-    /// </summary>
-    private string GenerateDefaultPostHtml(BlogPost post, string htmlContent)
-    {
-        var title = HttpUtility.HtmlEncode(post.Title);
-        var publishedDate = post.PublishedDate.ToString("yyyy-MM-dd");
-
-        return $$"""
-                 <!DOCTYPE html>
-                 <html lang="zh-TW">
-                 <head>
-                     <meta charset="UTF-8">
-                     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-                     <title>{{title}}</title>
-                     <style>
-                         /* 與 index.html 共用的基礎樣式 */
-                         body {
-                             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                             line-height: 1.6;
-                             margin: 0;
-                             padding: 20px;
-                             background-color: #f8f9fa;
-                         }
-                         .container {
-                             max-width: 1200px;
-                             margin: 0 auto;
-                             display: grid;
-                             grid-template-columns: 1fr 300px;
-                             gap: 40px;
-                         }
-                         .main-content {
-                             background: white;
-                             padding: 30px;
-                             border-radius: 8px;
-                             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                         }
-                         .sidebar {
-                             background: white;
-                             padding: 20px;
-                             border-radius: 8px;
-                             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                             position: sticky;
-                             top: 20px;
-                             max-height: calc(100vh - 40px);
-                             overflow-y: auto;
-                             display: flex;
-                             flex-direction: column;
-                             gap: 20px;
-                         }
-                         .home-link {
-                             font-size: 0.9rem;
-                             background: #28a745;
-                             color: #fff;
-                             padding: 8px 12px;
-                             border-radius: 6px;
-                             text-decoration: none;
-                             text-align: center;
-                         }
-                         .home-link:hover { background: #218838; }
-                         /* TOC 樣式 */
-                         .toc-title {
-                             margin: 0 0 10px 0;
-                             font-size: 1.1rem;
-                             border-bottom: 2px solid #007bff;
-                             padding-bottom: 6px;
-                             color: #333;
-                         }
-                         .toc-list {
-                             list-style: none;
-                             padding-left: 0;
-                             font-size: 0.85rem;
-                         }
-                         .toc-list li {
-                             margin-bottom: 6px;
-                         }
-                         .toc-list a {
-                             text-decoration: none;
-                             color: #007bff;
-                         }
-                         .toc-list a:hover {
-                             text-decoration: underline;
-                         }
-                     </style>
-                 </head>
-                 <body>
-                     <div class="container">
-                         <!-- 左側：文章主要內容 -->
-                         <article class="main-content">
-                             <h1>{{title}}</h1>
-                             <p style="color:#6c757d;font-size:0.9rem;">發布日期：{{publishedDate}}</p>
-                             {{{htmlContent}}}
-                         </article>
-
-                         <!-- 右側：返回首頁 + 目錄 -->
-                         <aside class="sidebar">
-                             <a href="index.html" class="home-link">🏠 返回首頁</a>
-
-                             <div>
-                                 <h3 class="toc-title">目錄</h3>
-                                 <ul id="toc" class="toc-list"></ul>
-                             </div>
-                         </aside>
-                     </div>
-
-                     <script>
-                         // 動態產生 TOC
-                         (function () {
-                             const tocUl = document.getElementById('toc');
-                             if (!tocUl) return;
-
-                             const headings = document.querySelectorAll('article h1, article h2, article h3');
-                             headings.forEach(h => {
-                                 if (!h.id) {
-                                     h.id = h.textContent.trim().toLowerCase()
-                                         .replace(/\\s+/g, '-')
-                                         .replace(/[^a-z0-9\\-]/g, '');
-                                 }
-                                 const li = document.createElement('li');
-                                 li.style.marginLeft = (parseInt(h.tagName.substring(1)) - 1) * 10 + 'px';
-                                 const a = document.createElement('a');
-                                 a.href = '#' + h.id;
-                                 a.textContent = h.textContent;
-                                 li.appendChild(a);
-                                 tocUl.appendChild(li);
-                             });
-                         })();
-                     </script>
-                 </body>
-                 </html>
-                 """;
-    }
-
-    private string GenerateImageFileName(string originalPath)
-    {
-        try
-        {
-            var extension = Path.GetExtension(originalPath).ToLowerInvariant();
-            var guid = Guid.NewGuid().ToString("N");
-            return $"{guid}{extension}";
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "生成圖片檔名時發生錯誤，使用原始檔名");
-            return Path.GetFileName(originalPath);
-        }
-    }
-
-    private async Task GenerateIndexPageAsync(IEnumerable<BlogPost> posts)
-    {
-        try
-        {
-            var postsList = posts.ToList();
-            logger.LogInformation("生成首頁，文章數量: {Count}", postsList.Count);
-
-            var templatePath = Path.Combine(configuration["BlogSettings:TemplatePath"] ?? "", "index.html");
-
-            if (File.Exists(templatePath))
-            {
-                await GenerateCustomIndexPageAsync(postsList, templatePath);
-            }
-            else
-            {
-                await GenerateDefaultIndexPageAsync(postsList);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "生成首頁時發生錯誤");
-            throw;
-        }
-    }
-
-    private async Task<string> GetFileHashAsync(string filePath)
-    {
-        using var md5 = System.Security.Cryptography.MD5.Create();
-        using var stream = File.OpenRead(filePath);
-        var hash = await md5.ComputeHashAsync(stream);
-        return Convert.ToHexString(hash);
-    }
-
-    private bool IsGuidFileName(string fileName)
-    {
-        var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
-        return nameWithoutExtension.Length == 32 && nameWithoutExtension.All(char.IsLetterOrDigit);
-    }
-
-    private bool IsImageFile(string filePath)
-    {
-        var extension = Path.GetExtension(filePath).ToLowerInvariant();
-        return extension is ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".webp" or ".svg";
-    }
-
-    private Task OrganizeExistingImagesAsync(string imageOutputPath)
-    {
-        try
-        {
-            logger.LogInformation("開始整理現有圖片檔案...");
-
-            // 只處理根目錄下的圖片檔案（應該移到子目錄中）
-            var rootImageFiles = Directory.GetFiles(imageOutputPath, "*", SearchOption.TopDirectoryOnly)
-                .Where(IsImageFile)
-                .ToList();
-
-            var movedCount = 0;
-
-            foreach (var imageFile in rootImageFiles)
-            {
-                var fileName = Path.GetFileName(imageFile);
-
-                // 如果檔案名稱是 GUID 格式，移動到對應的子目錄
-                if (IsGuidFileName(fileName))
-                {
-                    var subDir = fileName.Substring(0, 2);
-                    var targetSubDirPath = Path.Combine(imageOutputPath, subDir);
-                    var targetFilePath = Path.Combine(targetSubDirPath, fileName);
-
-                    // 確保目標子目錄存在
-                    if (!Directory.Exists(targetSubDirPath))
-                    {
-                        Directory.CreateDirectory(targetSubDirPath);
-                    }
-
-                    // 移動檔案
-                    if (!File.Exists(targetFilePath))
-                    {
-                        File.Move(imageFile, targetFilePath);
-                        movedCount++;
-                        logger.LogDebug("整理圖片: {Original} -> {Target}", imageFile, targetFilePath);
-                    }
-                    else
-                    {
-                        // 如果目標檔案已存在，刪除原始檔案
-                        File.Delete(imageFile);
-                        logger.LogDebug("刪除重複的圖片檔案: {File}", imageFile);
-                    }
-                }
-            }
-
-            logger.LogInformation("現有圖片檔案整理完成，移動了 {Count} 張圖片", movedCount);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "整理現有圖片檔案時發生錯誤");
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private string PostProcessImageTags(string html)
-    {
-        try
-        {
-            // 處理 HTML 中的 img 標籤，確保使用正確的 UUID 檔名
-            var imagePattern = @"<img\s+([^>]*)\s*/?>";
-            var regex = new Regex(imagePattern);
-
-            var result = regex.Replace(html, match =>
-            {
-                var fullMatch = match.Value;
-                var attributes = match.Groups[1].Value;
-
-                // 解析 src 屬性
-                var srcPattern = @"src\s*=\s*[""']([^""']+)[""']";
-                var srcMatch = Regex.Match(attributes, srcPattern);
-
-                if (srcMatch.Success)
-                {
-                    var originalSrc = srcMatch.Groups[1].Value;
-
-                    // 如果是網路圖片，不需要處理
-                    if (originalSrc.StartsWith("http") || originalSrc.StartsWith("data:"))
-                    {
-                        // 只添加 loading 屬性
-                        if (!attributes.Contains("loading="))
-                        {
-                            attributes += " loading=\"lazy\"";
-                        }
-
-                        return $"<img {attributes.Trim()}>";
-                    }
-
-                    // 處理本地圖片路徑
-                    var mappedPath = FindMappedImagePath(originalSrc);
-                    if (!string.IsNullOrEmpty(mappedPath))
-                    {
-                        // 更新 src 屬性
-                        var updatedAttributes = Regex.Replace(attributes, srcPattern, $"src=\"{mappedPath}\"");
-
-                        // 添加 loading 屬性
-                        if (!updatedAttributes.Contains("loading="))
-                        {
-                            updatedAttributes += " loading=\"lazy\"";
-                        }
-
-                        logger.LogDebug("更新圖片路徑: {Original} -> {Updated}", originalSrc, mappedPath);
-                        return $"<img {updatedAttributes.Trim()}>";
-                    }
-                    else
-                    {
-                        logger.LogWarning("找不到圖片映射: {Path}", originalSrc);
-                    }
-                }
-
-                // 如果沒有找到 src 或無法處理，只添加 loading 屬性
-                if (!attributes.Contains("loading="))
-                {
-                    attributes += " loading=\"lazy\"";
-                }
-
-                return $"<img {attributes.Trim()}>";
-            });
-
-            return result;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "後處理圖片標籤時發生錯誤");
-            return html;
-        }
-    }
-
-    private string ProcessConditionalSyntax(string template, List<string> tags, List<string> categories)
-    {
-        try
-        {
-            var tagsPattern = @"{{#if Tags}}(.*?){{/if}}";
-            var tagsRegex = new Regex(tagsPattern, RegexOptions.Singleline);
-            template = tagsRegex.Replace(template, match =>
-                tags.Count > 0 ? match.Groups[1].Value : "");
-
-            var categoriesPattern = @"{{#if Categories}}(.*?){{/if}}";
-            var categoriesRegex = new Regex(categoriesPattern, RegexOptions.Singleline);
-            template = categoriesRegex.Replace(template, match =>
-                categories.Count > 0 ? match.Groups[1].Value : "");
-
-            return template;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "處理條件語法時發生錯誤");
-            return template;
-        }
-    }
-
-    private string ProcessEachPostsSyntax(string template, List<BlogPost> posts)
-    {
-        try
-        {
-            var eachPattern = @"{{#each Posts}}(.*?){{/each}}";
-            var eachRegex = new Regex(eachPattern, RegexOptions.Singleline);
-
-            return eachRegex.Replace(template, match =>
-            {
-                var itemTemplate = match.Groups[1].Value;
-                var itemsHtml = string.Join("", posts.Select(post =>
-                {
-                    var tagsHtml = string.Empty;
-                    if (post.Tags.Count > 0)
-                    {
-                        tagsHtml = string.Join("．", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
-                    }
-
-                    var categoriesHtml = string.Empty;
-                    if (post.Categories.Count > 0)
-                    {
-                        categoriesHtml = string.Join("",
-                            post.Categories.Select(category => $"<span class=\"category\">{category}</span>"));
-                    }
-
-                    Debug.Assert(post.Tags != null);
-                    Debug.Assert(post.Categories != null);
-                    var processedItem = ProcessConditionalSyntax(itemTemplate, post.Tags, post.Categories);
-
-                    return processedItem
-                        .Replace("{{Title}}", post.Title)
-                        .Replace("{{Slug}}", post.Slug)
-                        .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
-                        .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
-                        .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
-                        .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
-                        .Replace("{{{Tags}}}", tagsHtml)
-                        .Replace("{{TagsPlain}}", post.Tags.Count > 0 ? string.Join(", ", post.Tags) : "")
-                        .Replace("{{{Categories}}}", categoriesHtml)
-                        .Replace("{{CategoriesPlain}}",
-                            post.Categories.Count > 0 ? string.Join("/", post.Categories) : "");
-                }));
-
-                return itemsHtml;
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "處理 {{#each Posts}} 語法時發生錯誤");
-            return template;
-        }
-    }
-
-    private string ProcessImagePaths(string markdown, string? markdownFilePath)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(markdownFilePath))
-            {
-                return markdown;
-            }
-
-            var imagePattern = @"!\[([^\]]*)\]\(([^)]+)\)";
-            var regex = new Regex(imagePattern);
-
-            logger.LogDebug("開始處理圖片路徑，Markdown 檔案: {FilePath}", markdownFilePath);
-
-            var result = regex.Replace(markdown, match =>
-            {
-                var altText = match.Groups[1].Value;
-                var imagePath = match.Groups[2].Value;
-
-                logger.LogDebug("找到圖片: {AltText}, 路徑: {Path}", altText, imagePath);
-
-                // 如果是網路圖片，不需要處理
-                if (imagePath.StartsWith("http"))
-                {
-                    return match.Value;
-                }
-
-                // 處理相對路徑和絕對路徑
-                string fullImagePath;
-
-                if (Path.IsPathRooted(imagePath))
-                {
-                    // 絕對路徑
-                    fullImagePath = imagePath;
-                }
+                // 否則添加 images/ 前綴
                 else
                 {
-                    // 相對路徑 - 需要先解碼 URL 編碼
-                    var decodedPath = Uri.UnescapeDataString(imagePath);
-                    logger.LogDebug("解碼圖片路徑: {Original} -> {Decoded}", imagePath, decodedPath);
-
-                    var markdownDir = Path.GetDirectoryName(markdownFilePath);
-                    if (string.IsNullOrEmpty(markdownDir))
-                    {
-                        return match.Value;
-                    }
-
-                    // 處理 "./" 開頭的路徑
-                    if (decodedPath.StartsWith("./"))
-                    {
-                        decodedPath = decodedPath.Substring(2);
-                    }
-
-                    fullImagePath = Path.Combine(markdownDir, decodedPath);
-                    fullImagePath = Path.GetFullPath(fullImagePath);
+                    var webImagePath = $"images/{imageSrc}";
+                    post.AddImagePath(webImagePath);
                 }
-
-                logger.LogDebug("轉換圖片路徑: {Original} -> {Full}", imagePath, fullImagePath);
-
-                // 檢查圖片是否存在
-                if (File.Exists(fullImagePath))
-                {
-                    // 檢查是否已經有映射關係
-                    if (!_imageMapping.ContainsKey(fullImagePath))
-                    {
-                        // 生成新的檔案名稱
-                        var newFileName = GenerateImageFileName(fullImagePath);
-                        var subDir = newFileName.Substring(0, 2);
-                        var relativePath = $"images/{subDir}/{newFileName}";
-
-                        // 記錄映射關係
-                        _imageMapping[fullImagePath] = relativePath;
-
-                        logger.LogDebug("圖片映射: {Original} -> {New}", fullImagePath, relativePath);
-                    }
-
-                    var mappedPath = _imageMapping[fullImagePath];
-                    return $"![{altText}]({mappedPath})";
-                }
-                else
-                {
-                    logger.LogWarning("圖片檔案不存在: {Path}", fullImagePath);
-                }
-
-                // 返回原始內容
-                return match.Value;
-            });
-
-            return result;
+            }
+            else
+            {
+                _logger.LogWarning("忽略完整路徑: {ImagePath}", imageSrc);
+            }
         }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "處理圖片路徑時發生錯誤");
-            return markdown;
-        }
+
+        _logger.LogDebug("文章 {Title} 找到 {Count} 張有效圖片", post.Title, post.ImagePaths.Count);
     }
 
-    private string ProcessMermaidCodeBlocks(string markdown)
+    private string ForceCleanAllFilePaths(string html)
+    {
+        // 強制清理所有可能的 file:// 路徑格式
+        var allFilePathRegex = new Regex(
+            @"file:///[^""'\s>]*",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        return allFilePathRegex.Replace(html, match =>
+        {
+            var fullPath = Uri.UnescapeDataString(match.Value.Substring(8)); // 移除 "file:///"
+            var fileName = Path.GetFileName(fullPath);
+
+            _logger.LogWarning("強制清理殘留的 file:// 路徑: {OriginalPath} -> images/{FileName}",
+                match.Value, fileName);
+
+            return $"images/{fileName}";
+        });
+    }
+
+    private async Task GenerateIndexPageAsync(List<BlogPost> posts, CategoryNode categoryTree)
+    {
+        _logger.LogInformation("開始生成首頁...");
+
+        var indexHtml = await _templateService.RenderIndexAsync(posts, categoryTree);
+
+        // 多層清理首頁中可能的 file:// 路徑
+        for (int i = 0; i < 3; i++)
+        {
+            var beforeClean = indexHtml;
+            indexHtml = CleanFileProtocolPaths(indexHtml);
+
+            if (beforeClean == indexHtml) break;
+        }
+
+        var outputPath = Path.Combine(_configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
+        await _fileService.WriteFileAsync(outputPath, indexHtml);
+
+        _logger.LogInformation("首頁生成完成");
+    }
+
+    private List<string> GetAlternativeImagePaths(string imagePath)
+    {
+        var alternatives = new List<string>();
+        var blogContentPath = _configuration["BlogContentPath"]!;
+
+        // 如果是絕對路徑，嘗試不同的基礎目錄
+        if (Path.IsPathFullyQualified(imagePath))
+        {
+            // 嘗試將路徑中的 "部落格" 替換為 "攝影部落格"
+            var modifiedPath1 = imagePath.Replace("\\部落格\\", "\\攝影部落格\\");
+            var modifiedPath2 = imagePath.Replace("/部落格/", "/攝影部落格/");
+
+            if (modifiedPath1 != imagePath) alternatives.Add(modifiedPath1);
+            if (modifiedPath2 != imagePath) alternatives.Add(modifiedPath2);
+
+            // 嘗試相反的替換
+            var modifiedPath3 = imagePath.Replace("\\攝影部落格\\", "\\部落格\\");
+            var modifiedPath4 = imagePath.Replace("/攝影部落格/", "/部落格/");
+
+            if (modifiedPath3 != imagePath) alternatives.Add(modifiedPath3);
+            if (modifiedPath4 != imagePath) alternatives.Add(modifiedPath4);
+        }
+        else
+        {
+            // 相對路徑，嘗試在 BlogContentPath 的各個子目錄中尋找
+            var fileName = Path.GetFileName(imagePath);
+            var directories = Directory.GetDirectories(blogContentPath, "*", SearchOption.AllDirectories);
+
+            foreach (var dir in directories)
+            {
+                var possiblePath = Path.Combine(dir, fileName);
+                alternatives.Add(possiblePath);
+
+                // 也嘗試在 .assets 子目錄中尋找
+                var assetsDir = Path.Combine(dir,
+                    Path.GetFileNameWithoutExtension(Directory.GetParent(dir)?.Name ?? "") + ".assets");
+                if (Directory.Exists(assetsDir))
+                {
+                    alternatives.Add(Path.Combine(assetsDir, fileName));
+                }
+            }
+        }
+
+        return alternatives.Distinct().ToList();
+    }
+
+    private string GetUniqueFileName(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        var uniqueName = fileName;
+        var counter = 1;
+
+        // 檢查是否已經有相同的檔名映射
+        while (_imageMapping.Values.Any(v => v.EndsWith(uniqueName)))
+        {
+            uniqueName = $"{name}_{counter}{extension}";
+            counter++;
+        }
+
+        return uniqueName;
+    }
+
+    private string ProcessImagePaths(string markdown, string? sourceFilePath)
+    {
+        return ImageRegex.Replace(markdown, match =>
+        {
+            var originalSrc = match.Groups[1].Value;
+            var processedSrc = ProcessSingleImagePath(originalSrc, sourceFilePath);
+            return match.Value.Replace(originalSrc, processedSrc);
+        });
+    }
+
+    private string ProcessSingleImagePath(string imageSrc, string? sourceFilePath)
     {
         try
         {
-            // 清空之前的占位符
-            _mermaidPlaceholders.Clear();
+            _logger.LogDebug("處理圖片路徑: {ImageSrc}", imageSrc);
 
-            // 匹配 Mermaid 程式碼區塊
-            var mermaidPattern = @"```mermaid\r?\n(.*?)\r?\n```";
-            var regex = new Regex(mermaidPattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
-
-            var matches = regex.Matches(markdown);
-            logger.LogDebug("找到 {Count} 個 Mermaid 圖表", matches.Count);
-
-            var result = regex.Replace(markdown, match =>
+            // 處理網路圖片
+            if (imageSrc.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                var mermaidCode = match.Groups[1].Value.Trim();
-                logger.LogDebug("處理 Mermaid 圖表，程式碼長度: {Length}", mermaidCode.Length);
-
-                // 生成唯一的占位符和 ID
-                var chartId = $"mermaid-{Guid.NewGuid().ToString("N")[..8]}";
-                var placeholder = $"MERMAID_PLACEHOLDER_{chartId}";
-
-                // 儲存 Mermaid HTML 到占位符映射
-                _mermaidPlaceholders[placeholder] = $"<div class=\"mermaid\" id=\"{chartId}\">\n{mermaidCode}\n</div>";
-
-                // 返回占位符
-                return placeholder;
-            });
-
-            return result;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "處理 Mermaid 程式碼區塊時發生錯誤，使用原始內容");
-            return markdown;
-        }
-    }
-
-    private string RestoreMermaidPlaceholders(string html)
-    {
-        try
-        {
-            // 建立快照以避免枚舉期間修改集合的例外
-            var snapshot = _mermaidPlaceholders.ToList();
-
-            // 將占位符替換回 Mermaid HTML
-            foreach (var (key, value) in snapshot)
-            {
-                // 占位符可能被包裝在 <p> 標籤中，需要移除
-                html = html.Replace($"<p>{key}</p>", value);
-                html = html.Replace(key, value);
+                return imageSrc;
             }
 
-            return html;
+            var originalSrc = imageSrc;
+
+            // 處理 file:// 協定的路徑
+            if (imageSrc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                imageSrc = imageSrc.Substring(7); // 移除 "file://"
+                _logger.LogDebug("移除 file:// 前綴: {Path}", imageSrc);
+            }
+
+            // URL 解碼（處理中文路徑）
+            try
+            {
+                imageSrc = Uri.UnescapeDataString(imageSrc);
+                _logger.LogDebug("URL 解碼後: {Path}", imageSrc);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "URL 解碼失敗，使用原始路徑: {Path}", imageSrc);
+            }
+
+            // 確定絕對路徑
+            string absoluteImagePath;
+            if (Path.IsPathFullyQualified(imageSrc))
+            {
+                absoluteImagePath = Path.GetFullPath(imageSrc);
+            }
+            else
+            {
+                // 相對路徑，需要結合源文件目錄
+                var sourceDir = string.IsNullOrEmpty(sourceFilePath)
+                    ? _configuration["BlogContentPath"]!
+                    : Path.GetDirectoryName(sourceFilePath)!;
+
+                absoluteImagePath = Path.GetFullPath(Path.Combine(sourceDir, imageSrc));
+            }
+
+            _logger.LogDebug("檢查圖片檔案存在性: {Path}", absoluteImagePath);
+
+            if (File.Exists(absoluteImagePath))
+            {
+                var fileName = Path.GetFileName(absoluteImagePath);
+
+                // 處理重複檔名
+                var uniqueFileName = GetUniqueFileName(fileName);
+
+                // 修正：返回包含 images/ 前綴的網頁路徑
+                var newImagePath = $"images/{uniqueFileName}";
+
+                // 在映射表中只存檔名，用於檔案複製
+                _imageMapping[absoluteImagePath] = uniqueFileName;
+
+                _logger.LogInformation("圖片路徑映射成功: {Original} -> {New}", originalSrc, newImagePath);
+                return newImagePath;
+            }
+
+            _logger.LogWarning("圖片檔案不存在: {ImagePath}", absoluteImagePath);
+
+            // 嘗試在不同的可能目錄中尋找圖片
+            var alternativePaths = GetAlternativeImagePaths(imageSrc);
+            foreach (var altPath in alternativePaths)
+            {
+                _logger.LogDebug("嘗試替代路徑: {Path}", altPath);
+                if (File.Exists(altPath))
+                {
+                    var fileName = Path.GetFileName(altPath);
+                    var uniqueFileName = GetUniqueFileName(fileName);
+                    var newImagePath = $"images/{uniqueFileName}";
+
+                    _imageMapping[altPath] = uniqueFileName;
+
+                    _logger.LogInformation("在替代路徑找到圖片: {Original} -> {New}", altPath, newImagePath);
+                    return newImagePath;
+                }
+            }
+
+            // 如果找不到圖片，返回一個預設的路徑
+            var missingFileName = Path.GetFileName(imageSrc);
+            return $"images/missing-{missingFileName}";
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "恢復 Mermaid 占位符時發生錯誤");
-            return html;
+            _logger.LogError(ex, "處理圖片路徑失敗: {ImageSrc}", imageSrc);
+            return imageSrc;
         }
-    }
-
-
-    /// <summary>
-    /// 清理路徑中的特殊字符
-    /// </summary>
-    private static string SanitizePath(string path)
-    {
-        return path.Replace(" ", "-")
-            .Replace("　", "-") // 全型空格
-            .Replace("/", "-")
-            .Replace("\\", "-")
-            .Replace(":", "-")
-            .Replace("*", "-")
-            .Replace("?", "-")
-            .Replace("\"", "-")
-            .Replace("<", "-")
-            .Replace(">", "-")
-            .Replace("|", "-");
-    }
-
-    private async Task SaveHtmlFileAsync(BlogPost post, string htmlContent)
-    {
-        var outputPath = configuration.GetValue("BlogSettings:HtmlOutputPath", "./Output");
-
-        // 確保輸出目錄存在
-        if (!Directory.Exists(outputPath))
-        {
-            Directory.CreateDirectory(outputPath);
-        }
-
-        // 直接使用 HtmlFilePath，不建立分類目錄
-        var htmlFilePath = Path.Combine(outputPath, post.HtmlFilePath);
-
-        await File.WriteAllTextAsync(htmlFilePath, htmlContent);
-        logger.LogInformation("已保存 HTML 檔案: {FilePath}", htmlFilePath);
     }
 }

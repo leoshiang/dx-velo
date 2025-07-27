@@ -73,25 +73,6 @@ class Program
         return Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
     }
 
-    /// <summary>
-    /// 解析相對路徑，以執行檔目錄為基準
-    /// </summary>
-    /// <param name="path">原始路徑</param>
-    /// <param name="basePath">基準路徑（執行檔目錄）</param>
-    /// <returns>解析後的絕對路徑</returns>
-    private static string? ResolveRelativePath(string? path, string basePath)
-    {
-        if (string.IsNullOrEmpty(path))
-            return path;
-
-        // 如果已經是絕對路徑，直接返回
-        if (Path.IsPathRooted(path))
-            return path;
-
-        // 相對路徑，以執行檔目錄為基準
-        return Path.GetFullPath(Path.Combine(basePath, path));
-    }
-
     static async Task Main(string[] args)
     {
         // 1. 定義命令列選項
@@ -212,6 +193,8 @@ class Program
                         services.AddSingleton<IConfiguration>(context.Configuration);
                         services.AddScoped<IBlogService, BlogService>();
                         services.AddScoped<IMarkdownToHtmlService, MarkdownToHtmlConverter>();
+                        services.AddScoped<ITemplateService, TemplateService>();
+                        services.AddScoped<IFileService, FileService>();
                         services.AddScoped<ConverterService>();
                     })
                     .ConfigureLogging(logging =>
@@ -342,5 +325,24 @@ class Program
 
         // 執行命令列解析
         await rootCommand.InvokeAsync(args);
+    }
+
+    /// <summary>
+    /// 解析相對路徑，以執行檔目錄為基準
+    /// </summary>
+    /// <param name="path">原始路徑</param>
+    /// <param name="basePath">基準路徑（執行檔目錄）</param>
+    /// <returns>解析後的絕對路徑</returns>
+    private static string? ResolveRelativePath(string? path, string basePath)
+    {
+        if (string.IsNullOrEmpty(path))
+            return path;
+
+        // 如果已經是絕對路徑，直接返回
+        if (Path.IsPathRooted(path))
+            return path;
+
+        // 相對路徑，以執行檔目錄為基準
+        return Path.GetFullPath(Path.Combine(basePath, path));
     }
 }
