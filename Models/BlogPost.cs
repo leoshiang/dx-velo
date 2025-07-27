@@ -1,4 +1,6 @@
-﻿namespace Velo.Models;
+﻿using Velo.Utils;
+
+namespace Velo.Models;
 
 /// <summary>
 /// 代表一篇知識庫文章的資料模型。
@@ -33,8 +35,8 @@ public class BlogPost
                 ? Slug
                 : Path.GetFileNameWithoutExtension(SourceFilePath);
 
-            // 轉換檔案名稱：空白轉 -，英文小寫
-            var processedFileName = ProcessFileName(originalFileName);
+            // 使用統一的檔案名稱處理方法
+            var processedFileName = PathUtils.ProcessFileName(originalFileName);
 
             // 生成 8 碼 hash code
             var hashCode = GetFileHashCode();
@@ -51,29 +53,6 @@ public class BlogPost
     public required string Title { get; set; }
 
     /// <summary>
-    /// 處理檔案名稱：空白轉 -，英文小寫
-    /// </summary>
-    private static string ProcessFileName(string fileName)
-    {
-        if (string.IsNullOrEmpty(fileName))
-            return "untitled";
-
-        // 轉換為小寫
-        var processed = fileName.ToLower();
-
-        // 空白轉換成 -
-        processed = processed.Replace(" ", "-");
-
-        // 全型空格也轉換成 -
-        processed = processed.Replace("　", "-");
-
-        // 移除或替換其他不適合的字符
-        processed = SanitizePath(processed);
-
-        return processed;
-    }
-
-    /// <summary>
     /// 基於來源檔案路徑生成 8 碼 HashCode
     /// </summary>
     private string GetFileHashCode()
@@ -81,46 +60,10 @@ public class BlogPost
         if (string.IsNullOrEmpty(SourceFilePath))
         {
             // 如果沒有來源檔案路徑，使用 Title 和 HtmlFileId 來生成 hash
-            return Math.Abs((Title + HtmlFileId).GetHashCode()).ToString("x8");
+            return PathUtils.GenerateHashCode(Title + HtmlFileId);
         }
 
         // 使用來源檔案路徑生成 8 位16進制 hash
-        return Math.Abs(SourceFilePath.GetHashCode()).ToString("x8");
-    }
-
-    /// <summary>
-    /// 清理路徑中的特殊字符
-    /// </summary>
-    private static string SanitizePath(string path)
-    {
-        return path.Replace("/", "-")
-            .Replace("\\", "-")
-            .Replace(":", "-")
-            .Replace("*", "-")
-            .Replace("?", "-")
-            .Replace("\"", "-")
-            .Replace("<", "-")
-            .Replace(">", "-")
-            .Replace("|", "-")
-            .Replace(".", "-")
-            .Replace(",", "-")
-            .Replace(";", "-")
-            .Replace("!", "-")
-            .Replace("@", "-")
-            .Replace("#", "-")
-            .Replace("$", "-")
-            .Replace("%", "-")
-            .Replace("^", "-")
-            .Replace("&", "-")
-            .Replace("(", "-")
-            .Replace(")", "-")
-            .Replace("+", "-")
-            .Replace("=", "-")
-            .Replace("[", "-")
-            .Replace("]", "-")
-            .Replace("{", "-")
-            .Replace("}", "-")
-            .Replace("~", "-")
-            .Replace("`", "-");
+        return PathUtils.GenerateHashCode(SourceFilePath);
     }
 }
