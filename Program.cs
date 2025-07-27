@@ -211,7 +211,6 @@ class Program
                         // 使用由主機建立的 IConfiguration 實例
                         services.AddSingleton<IConfiguration>(context.Configuration);
                         services.AddScoped<IBlogService, BlogService>();
-                        services.AddScoped<ITemplateService, TemplateService>();
                         services.AddScoped<IMarkdownToHtmlService, MarkdownToHtmlConverter>();
                         services.AddScoped<ConverterService>();
                     })
