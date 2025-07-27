@@ -44,6 +44,22 @@ public class TemplateService(
         return RenderDefaultPostHtml(post, htmlContent);
     }
 
+    private string GenerateCategoriesHtml(List<string> categories)
+    {
+        if (categories.Count == 0) return string.Empty;
+
+        return string.Join("", categories.Select(category =>
+            $"<span class=\"category\">{category}</span>"));
+    }
+
+    private string GenerateTagsHtml(List<string> tags)
+    {
+        if (tags.Count == 0) return string.Empty;
+
+        return string.Join("", tags.Select(tag =>
+            $"<span class=\"tag\">#{tag}</span>"));
+    }
+
     private string GenerateCategoryNodeHtml(CategoryNode node, string parentPath)
     {
         var sb = new StringBuilder();
@@ -89,10 +105,28 @@ public class TemplateService(
 
     private string ProcessTemplateVariables(string template, List<BlogPost> posts, string categoryTreeHtml)
     {
+        var postsJson = System.Text.Json.JsonSerializer.Serialize(posts.Select(p => new
+        {
+            Title = p.Title,
+            HtmlFilePath = p.HtmlFilePath,
+            PublishedDate = p.PublishedDate.ToString("yyyy-MM-dd"),
+            PublishedDateLong = p.PublishedDate.ToString("yyyy年MM月dd日"),
+            Author = p.Author ?? string.Empty,
+            Categories = GenerateCategoriesHtml(p.Categories),
+            CategoriesPlain = string.Join(" / ", p.Categories),
+            Tags = GenerateTagsHtml(p.Tags),
+            TagsPlain = string.Join(" ", p.Tags.Select(t => $"#{t}")),
+            FirstImageUrl = p.FirstImageUrl,
+            ImageCount = p.ImagePaths.Count,
+            Slug = p.Slug
+        }));
+
         return template
             .Replace("{{PostCount}}", posts.Count.ToString())
             .Replace("{{{CategoryTree}}}", categoryTreeHtml)
-            .Replace("{{CategoryTree}}", categoryTreeHtml);
+            .Replace("{{CategoryTree}}", categoryTreeHtml)
+            .Replace("{{GeneratedDate}}", DateTime.Now.ToString("yyyy年MM月dd日 HH:mm:ss"))
+            .Replace("{{PostsJSON}}", postsJson);
     }
 
     private async Task<string> RenderCustomIndexAsync(IEnumerable<BlogPost> posts, CategoryNode categoryTree,
@@ -106,6 +140,21 @@ public class TemplateService(
             var categoryTreeHtml = GenerateCategoryTreeHtml(categoryTree);
             var processedTemplate = ProcessTemplateVariables(template, postsList, categoryTreeHtml);
 
+            // 如果模板包含 Handlebars 循環語法，處理 Posts 循環
+            if (processedTemplate.Contains("{{#each Posts}}"))
+            {
+                var postsHtml = string.Join("", postsList.Select(post =>
+                {
+                    var postTemplate = ExtractPostTemplate(processedTemplate);
+                    return RenderSinglePostInLoop(postTemplate, post);
+                }));
+
+                processedTemplate = processedTemplate.Replace(
+                    System.Text.RegularExpressions.Regex.Match(processedTemplate, @"{{#each Posts}}.*?{{/each}}",
+                        System.Text.RegularExpressions.RegexOptions.Singleline).Value,
+                    postsHtml);
+            }
+
             return processedTemplate;
         }
         catch (Exception ex)
@@ -113,6 +162,32 @@ public class TemplateService(
             _logger.LogError(ex, "渲染自訂首頁模板失敗");
             throw;
         }
+    }
+
+    private string ExtractPostTemplate(string template)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(template,
+            @"{{#each Posts}}(.*?){{/each}}",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        return match.Success ? match.Groups[1].Value : "";
+    }
+
+    private string RenderSinglePostInLoop(string postTemplate, BlogPost post)
+    {
+        return postTemplate
+            .Replace("{{Title}}", post.Title)
+            .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
+            .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
+            .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
+            .Replace("{{Author}}", post.Author ?? string.Empty)
+            .Replace("{{{Categories}}}", GenerateCategoriesHtml(post.Categories))
+            .Replace("{{CategoriesPlain}}", string.Join(" / ", post.Categories))
+            .Replace("{{{Tags}}}", GenerateTagsHtml(post.Tags))
+            .Replace("{{TagsPlain}}", string.Join(" ", post.Tags.Select(t => $"#{t}")))
+            .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
+            .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString())
+            .Replace("{{Slug}}", post.Slug);
     }
 
     private async Task<string> RenderCustomPostAsync(BlogPost post, string htmlContent, string templatePath)
@@ -244,7 +319,7 @@ public class TemplateService(
         sb.AppendLine($"                    <span>📝 文章總數: {postsList.Count}</span>");
         sb.AppendLine("                </div>");
         sb.AppendLine("            </header>");
-        sb.AppendLine("            <div class=\"posts\">");
+        sb.AppendLine("            <div class=\"posts\" id=\"posts-container\">");
         sb.AppendLine(postsHtml);
         sb.AppendLine("            </div>");
         sb.AppendLine("        </main>");
