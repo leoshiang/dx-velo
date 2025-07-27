@@ -1,211 +1,296 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Reflection;
+using Microsoft.Extensions.Logging;
+using Velo.Services.Abstractions;
 
 namespace Velo.Services;
 
 /// <summary>
-/// 檔案系統操作服務
-/// 提供檔案和目錄的基本操作功能，包括讀取、寫入、複製檔案以及目錄管理
-/// 所有操作都包含完整的錯誤處理和日誌記錄
+/// 檔案服務實作
+/// 提供檔案和目錄操作功能
 /// </summary>
-/// <param name="logger">日誌記錄器，用於記錄檔案操作的結果和錯誤資訊</param>
 public class FileService(ILogger<FileService> logger) : IFileService
 {
-    #region 檔案複製操作
-
     /// <summary>
-    /// 非同步複製檔案
-    /// 使用串流的方式進行檔案複製，支援大檔案的高效複製
-    /// 自動確保目標目錄存在，避免因目錄不存在而複製失敗
+    /// 清空輸出目錄
+    /// 刪除目錄中的所有檔案和子目錄
     /// </summary>
-    /// <param name="sourcePath">來源檔案的完整路徑</param>
-    /// <param name="targetPath">目標檔案的完整路徑</param>
-    /// <returns>非同步任務</returns>
-    /// <exception cref="FileNotFoundException">當來源檔案不存在時拋出</exception>
-    /// <exception cref="UnauthorizedAccessException">當沒有檔案存取權限時拋出</exception>
-    /// <exception cref="DirectoryNotFoundException">當來源目錄不存在時拋出</exception>
-    /// <exception cref="IOException">當發生 I/O 錯誤時拋出</exception>
-    public async Task CopyFileAsync(string sourcePath, string targetPath)
+    public async Task ClearOutputDirectoryAsync(string outputPath)
     {
         try
         {
-            // 確保目標檔案的目錄存在
-            // 從目標檔案路徑中提取目錄路徑，並確保該目錄存在
-            EnsureDirectoryExists(Path.GetDirectoryName(targetPath)!);
+            logger.LogInformation("開始清空輸出目錄: {OutputPath}", outputPath);
 
-            // 使用非同步串流進行檔案複製
-            // await using 確保串流在使用完畢後自動釋放資源
-            await using var sourceStream = File.OpenRead(sourcePath); // 開啟來源檔案進行讀取
-            await using var targetStream = File.Create(targetPath); // 建立目標檔案進行寫入
+            if (!Directory.Exists(outputPath))
+            {
+                logger.LogWarning("輸出目錄不存在: {OutputPath}", outputPath);
+                return;
+            }
 
-            // 將來源串流的內容複製到目標串流
-            // CopyToAsync 方法會自動處理緩衝區管理，適合處理大檔案
-            await sourceStream.CopyToAsync(targetStream);
+            await Task.Run(() =>
+            {
+                // 取得目錄中的所有檔案和子目錄
+                var directoryInfo = new DirectoryInfo(outputPath);
+                int deletedFiles = 0;
+                int deletedDirectories = 0;
 
-            // 記錄成功的複製操作
-            logger.LogDebug("檔案複製成功: {Source} -> {Target}", sourcePath, targetPath);
+                // 刪除所有檔案
+                foreach (var file in directoryInfo.GetFiles())
+                {
+                    try
+                    {
+                        file.Delete();
+                        deletedFiles++;
+                        logger.LogDebug("已刪除檔案: {FilePath}", file.FullName);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "無法刪除檔案: {FilePath}", file.FullName);
+                    }
+                }
+
+                // 刪除所有子目錄
+                foreach (var directory in directoryInfo.GetDirectories())
+                {
+                    try
+                    {
+                        directory.Delete(true); // 遞歸刪除
+                        deletedDirectories++;
+                        logger.LogDebug("已刪除目錄: {DirectoryPath}", directory.FullName);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "無法刪除目錄: {DirectoryPath}", directory.FullName);
+                    }
+                }
+
+                logger.LogInformation("輸出目錄清除完成，已刪除 {FileCount} 個檔案和 {DirectoryCount} 個目錄",
+                    deletedFiles, deletedDirectories);
+            });
         }
         catch (Exception ex)
         {
-            // 記錄錯誤並重新拋出例外，讓呼叫者能夠處理
-            logger.LogError(ex, "複製檔案失敗: {Source} -> {Target}", sourcePath, targetPath);
+            logger.LogError(ex, "清除輸出目錄時發生錯誤: {OutputPath}", outputPath);
             throw;
         }
     }
 
-    #endregion
-
-    #region 目錄管理操作
-
     /// <summary>
-    /// 確保指定的目錄存在
-    /// 如果目錄不存在，則遞歸建立所有必要的父目錄
-    /// 這是一個同步方法，因為目錄建立操作通常很快完成
+    /// 複製檔案
     /// </summary>
-    /// <param name="path">要確保存在的目錄路徑</param>
-    /// <remarks>
-    /// 此方法是冪等的（idempotent），多次呼叫相同路徑不會產生錯誤
-    /// 如果路徑為空或 null，方法會安全地忽略操作
-    /// </remarks>
-    public void EnsureDirectoryExists(string path)
-    {
-        // 檢查路徑是否有效且目錄是否不存在
-        if (!string.IsNullOrEmpty(path) && !Directory.Exists(path))
-        {
-            // CreateDirectory 會自動建立所有必要的父目錄
-            // 例如：建立 "a/b/c" 時，會自動建立 "a" 和 "a/b"
-            Directory.CreateDirectory(path);
-        }
-    }
-
-    #endregion
-
-    #region 檔案讀取操作
-
-    /// <summary>
-    /// 非同步讀取檔案的完整內容
-    /// 以 UTF-8 編碼讀取文字檔案，適用於 Markdown、HTML、JSON 等文字格式
-    /// </summary>
-    /// <param name="filePath">要讀取的檔案完整路徑</param>
-    /// <returns>檔案的完整文字內容</returns>
-    /// <exception cref="FileNotFoundException">當檔案不存在時拋出</exception>
-    /// <exception cref="UnauthorizedAccessException">當沒有檔案讀取權限時拋出</exception>
-    /// <exception cref="DirectoryNotFoundException">當檔案所在目錄不存在時拋出</exception>
-    /// <exception cref="IOException">當發生 I/O 錯誤時拋出</exception>
-    /// <remarks>
-    /// 此方法會將整個檔案載入記憶體，不適用於非常大的檔案
-    /// 對於大檔案，建議使用串流讀取方式
-    /// </remarks>
-    public async Task<string> ReadFileAsync(string filePath)
+    public async Task CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = true)
     {
         try
         {
-            // File.ReadAllTextAsync 預設使用 UTF-8 編碼
-            // 自動處理 BOM (Byte Order Mark) 和不同的換行符號格式
+            logger.LogDebug("複製檔案: {Source} -> {Destination}", sourcePath, destinationPath);
+
+            // 確保目標目錄存在
+            var destinationDirectory = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(destinationDirectory))
+            {
+                EnsureDirectoryExists(destinationDirectory);
+            }
+
+            await Task.Run(() => File.Copy(sourcePath, destinationPath, overwrite));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "複製檔案失敗: {Source} -> {Destination}", sourcePath, destinationPath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 建立目錄
+    /// </summary>
+    public void CreateDirectory(string directoryPath)
+    {
+        try
+        {
+            if (!Directory.Exists(directoryPath))
+            {
+                logger.LogDebug("建立目錄: {DirectoryPath}", directoryPath);
+                Directory.CreateDirectory(directoryPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "建立目錄失敗: {DirectoryPath}", directoryPath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 檢查目錄是否存在
+    /// </summary>
+    public bool DirectoryExists(string directoryPath)
+    {
+        return Directory.Exists(directoryPath);
+    }
+
+    /// <summary>
+    /// 確保目錄存在
+    /// </summary>
+    public void EnsureDirectoryExists(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            logger.LogDebug("建立目錄: {DirectoryPath}", directoryPath);
+            Directory.CreateDirectory(directoryPath);
+        }
+    }
+
+    /// <summary>
+    /// 檢查檔案是否存在
+    /// </summary>
+    public bool FileExists(string filePath)
+    {
+        return File.Exists(filePath);
+    }
+
+    /// <summary>
+    /// 取得應用程式執行檔所在的目錄路徑
+    /// 處理各種部署模式（包括 PublishSingleFile）
+    /// </summary>
+    /// <returns>執行檔目錄的絕對路徑</returns>
+    public string GetExecutableDirectory()
+    {
+        try
+        {
+            var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+
+            if (string.IsNullOrEmpty(assemblyLocation))
+            {
+                // 在某些情況下（如 PublishSingleFile），Assembly.Location 可能為空
+                // 這時使用 AppContext.BaseDirectory
+                logger.LogDebug("Assembly.Location 為空，使用 AppContext.BaseDirectory: {BaseDirectory}",
+                    AppContext.BaseDirectory);
+                return AppContext.BaseDirectory;
+            }
+
+            var executableDirectory = Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
+            logger.LogDebug("取得執行檔目錄: {Directory}", executableDirectory);
+
+            return executableDirectory;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "取得執行檔目錄失敗");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 取得目錄中的所有檔案
+    /// </summary>
+    public IEnumerable<string> GetFiles(string directoryPath, string searchPattern = "*",
+        SearchOption searchOption = SearchOption.AllDirectories)
+    {
+        try
+        {
+            logger.LogDebug("掃描目錄檔案: {DirectoryPath}, 模式: {Pattern}", directoryPath, searchPattern);
+            return Directory.GetFiles(directoryPath, searchPattern, searchOption);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "掃描目錄檔案失敗: {DirectoryPath}", directoryPath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 取得檔案的最後修改時間
+    /// </summary>
+    public DateTime GetLastWriteTime(string filePath)
+    {
+        try
+        {
+            return File.GetLastWriteTime(filePath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "取得檔案修改時間失敗: {FilePath}", filePath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 讀取檔案內容
+    /// </summary>
+    public async Task<string> ReadAllTextAsync(string filePath)
+    {
+        try
+        {
+            logger.LogDebug("讀取檔案: {FilePath}", filePath);
             return await File.ReadAllTextAsync(filePath);
         }
         catch (Exception ex)
         {
-            // 記錄詳細的錯誤資訊，包括檔案路徑
             logger.LogError(ex, "讀取檔案失敗: {FilePath}", filePath);
             throw;
         }
     }
 
-    #endregion
-
-    #region 檔案寫入操作
-
     /// <summary>
-    /// 非同步寫入內容到檔案
-    /// 以 UTF-8 編碼寫入文字內容，如果檔案已存在則完全覆蓋
-    /// 自動確保目標目錄存在，避免因目錄不存在而寫入失敗
+    /// 解析相對路徑為絕對路徑
+    /// 將相對路徑轉換為以指定基準目錄為基礎的絕對路徑
     /// </summary>
-    /// <param name="filePath">要寫入的檔案完整路徑</param>
-    /// <param name="content">要寫入的文字內容</param>
-    /// <returns>非同步任務</returns>
-    /// <exception cref="UnauthorizedAccessException">當沒有檔案寫入權限時拋出</exception>
-    /// <exception cref="DirectoryNotFoundException">當無法建立目標目錄時拋出</exception>
-    /// <exception cref="IOException">當發生 I/O 錯誤時拋出</exception>
-    /// <remarks>
-    /// 此方法會完全覆蓋現有檔案內容
-    /// 使用 UTF-8 編碼寫入，包含 BOM
-    /// 適用於 HTML、Markdown、JSON 等文字檔案的寫入
-    /// </remarks>
-    public async Task WriteFileAsync(string filePath, string content)
+    /// <param name="path">原始路徑（可以是相對路徑或絕對路徑）</param>
+    /// <param name="basePath">基準目錄路徑</param>
+    /// <returns>解析後的絕對路徑，如果輸入為 null 或空則返回原值</returns>
+    public string? ResolveRelativePath(string? path, string basePath)
     {
         try
         {
-            // 確保檔案所在的目錄存在
-            // 從檔案路徑中提取目錄部分，並確保該目錄存在
-            EnsureDirectoryExists(Path.GetDirectoryName(filePath)!);
+            // 如果路徑為空或 null，直接返回
+            if (string.IsNullOrEmpty(path))
+            {
+                logger.LogDebug("路徑為空，直接返回: {Path}", path);
+                return path;
+            }
 
-            // File.WriteAllTextAsync 預設使用 UTF-8 編碼
-            // 如果檔案已存在，會完全覆蓋原有內容
-            // 如果檔案不存在，會自動建立新檔案
+            // 如果已經是絕對路徑，直接返回
+            if (Path.IsPathRooted(path))
+            {
+                logger.LogDebug("已是絕對路徑，直接返回: {Path}", path);
+                return path;
+            }
+
+            // 相對路徑，以基準目錄為基礎進行解析
+            var resolvedPath = Path.GetFullPath(Path.Combine(basePath, path));
+            logger.LogDebug("解析相對路徑: {OriginalPath} + {BasePath} -> {ResolvedPath}",
+                path, basePath, resolvedPath);
+
+            return resolvedPath;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "解析相對路徑失敗: Path={Path}, BasePath={BasePath}", path, basePath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 寫入檔案內容
+    /// </summary>
+    public async Task WriteAllTextAsync(string filePath, string content)
+    {
+        try
+        {
+            logger.LogDebug("寫入檔案: {FilePath}", filePath);
+
+            // 確保目錄存在
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                EnsureDirectoryExists(directory);
+            }
+
             await File.WriteAllTextAsync(filePath, content);
         }
         catch (Exception ex)
         {
-            // 記錄詳細的錯誤資訊，包括檔案路徑
             logger.LogError(ex, "寫入檔案失敗: {FilePath}", filePath);
             throw;
         }
     }
-
-    #endregion
-
-    #region 檔案搜尋操作
-
-    /// <summary>
-    /// 非同步搜尋指定目錄中的所有 Markdown 檔案
-    /// 遞歸搜尋所有子目錄，找出所有 .md 副檔名的檔案
-    /// 這是部落格系統的核心功能，用於發現所有需要處理的文章檔案
-    /// </summary>
-    /// <param name="directory">要搜尋的根目錄路徑</param>
-    /// <returns>找到的所有 Markdown 檔案的完整路徑集合</returns>
-    /// <exception cref="UnauthorizedAccessException">當沒有目錄存取權限時拋出</exception>
-    /// <exception cref="IOException">當發生 I/O 錯誤時拋出</exception>
-    /// <remarks>
-    /// 搜尋模式：
-    /// - 檔案模式："*.md" (不區分大小寫)
-    /// - 搜尋範圍：包含所有子目錄 (SearchOption.AllDirectories)
-    /// - 安全處理：如果目錄不存在，回傳空集合而不拋出例外
-    /// 
-    /// 效能考量：
-    /// - 對於包含大量檔案的目錄結構，此操作可能耗時較長
-    /// - 建議在應用程式啟動時執行一次，然後快取結果
-    /// </remarks>
-    public Task<IEnumerable<string>> GetMarkdownFilesAsync(string directory)
-    {
-        try
-        {
-            // 檢查目錄是否存在
-            if (!Directory.Exists(directory))
-            {
-                // 目錄不存在時記錄警告，但不拋出例外
-                // 這樣可以讓應用程式在設定錯誤時仍能正常運行
-                logger.LogWarning("目錄不存在: {Directory}", directory);
-                return Task.FromResult(Enumerable.Empty<string>());
-            }
-
-            // 遞歸搜尋所有 .md 檔案
-            // SearchOption.AllDirectories 表示包含所有子目錄
-            // "*.md" 模式會匹配所有以 .md 結尾的檔案
-            var files = Directory.GetFiles(directory, "*.md", SearchOption.AllDirectories);
-
-            // 記錄搜尋結果的統計資訊
-            logger.LogInformation("找到 {Count} 個 Markdown 檔案", files.Length);
-
-            // 將陣列轉換為 IEnumerable<string> 並包裝為已完成的 Task
-            return Task.FromResult<IEnumerable<string>>(files);
-        }
-        catch (Exception ex)
-        {
-            // 記錄搜尋過程中的錯誤
-            logger.LogError(ex, "掃描 Markdown 檔案失敗: {Directory}", directory);
-            throw;
-        }
-    }
-
-    #endregion
 }

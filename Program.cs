@@ -1,81 +1,15 @@
 using System.CommandLine;
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Velo.Services;
-
-// 引入 System.CommandLine
-// 引入 System.CommandLine.Parsing
+using Velo.Services.Abstractions;
 
 namespace Velo;
 
 class Program
 {
-    private static Task ClearOutputDirectoryAsync(string outputPath, ILogger logger)
-    {
-        try
-        {
-            // 取得目錄中的所有檔案和子目錄
-            var directoryInfo = new DirectoryInfo(outputPath);
-
-            // 刪除所有檔案
-            foreach (var file in directoryInfo.GetFiles())
-            {
-                try
-                {
-                    file.Delete();
-                    logger.LogDebug("已刪除檔案: {FilePath}", file.FullName);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "無法刪除檔案: {FilePath}", file.FullName);
-                }
-            }
-
-            // 刪除所有子目錄
-            foreach (var directory in directoryInfo.GetDirectories())
-            {
-                try
-                {
-                    directory.Delete(true); // 遞歸刪除
-                    logger.LogDebug("已刪除目錄: {DirectoryPath}", directory.FullName);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "無法刪除目錄: {DirectoryPath}", directory.FullName);
-                }
-            }
-
-            logger.LogInformation("輸出目錄清除完成，已刪除 {FileCount} 個檔案和 {DirectoryCount} 個目錄",
-                directoryInfo.GetFiles().Length, directoryInfo.GetDirectories().Length);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "清除輸出目錄時發生錯誤: {OutputPath}", outputPath);
-            throw;
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// 取得執行檔所在的目錄路徑
-    /// </summary>
-    private static string GetExecutableDirectory()
-    {
-        var assemblyLocation = Assembly.GetExecutingAssembly().Location;
-        if (string.IsNullOrEmpty(assemblyLocation))
-        {
-            // 在某些情況下（如 PublishSingleFile），Assembly.Location 可能為空
-            // 這時使用 AppContext.BaseDirectory
-            return AppContext.BaseDirectory;
-        }
-
-        return Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
-    }
-
     static async Task Main(string[] args)
     {
         // 1. 定義命令列選項
@@ -130,7 +64,12 @@ class Program
         rootCommand.SetHandler(
             async (configFile, contentPath, outputPath, templatePath, imagePath, clearOutput, autoYaml, autoSave) =>
             {
-                var executableDirectory = GetExecutableDirectory();
+                // 建立臨時的 FileService 實例來取得執行檔目錄
+                using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+                var tempLogger = loggerFactory.CreateLogger<FileService>();
+                var tempFileService = new FileService(tempLogger);
+
+                var executableDirectory = tempFileService.GetExecutableDirectory();
 
                 // 使用參數指定的設定檔名稱，如果沒有指定則使用預設值
                 var configFileName = configFile ?? "velo.config.json";
@@ -154,7 +93,7 @@ class Program
 
                 // 建立主機設定
                 var host = Host.CreateDefaultBuilder()
-                    .ConfigureAppConfiguration((context, config) =>
+                    .ConfigureAppConfiguration(config =>
                     {
                         // 清除預設的設定來源，以便完全控制
                         config.Sources.Clear();
@@ -181,10 +120,8 @@ class Program
                             commandLineOverrides["BlogSettings:AutoSaveModified"] = autoSave.Value.ToString();
 
                         // 將命令列參數作為 In-Memory Collection 加入，確保其優先級最高
-                        if (commandLineOverrides.Any())
-                        {
-                            config.AddInMemoryCollection(commandLineOverrides);
-                        }
+                        if (commandLineOverrides.Count == 0) return;
+                        config.AddInMemoryCollection(commandLineOverrides!);
                     })
                     .ConfigureServices((context, services) =>
                     {
@@ -193,7 +130,7 @@ class Program
                             options.SuppressStatusMessages = true;
                         });
                         // 使用由主機建立的 IConfiguration 實例
-                        services.AddSingleton<IConfiguration>(context.Configuration);
+                        services.AddSingleton(context.Configuration);
                         services.AddScoped<IBlogService, BlogService>();
                         services.AddScoped<IMarkdownToHtmlService, MarkdownToHtmlConverter>();
                         services.AddScoped<ITemplateService, TemplateService>();
@@ -213,6 +150,7 @@ class Program
                 using var scope = host.Services.CreateScope();
                 var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
                 var converterService = scope.ServiceProvider.GetRequiredService<ConverterService>();
+                var fileService = scope.ServiceProvider.GetRequiredService<IFileService>(); // 取得 FileService
                 var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>(); // 取得最終的配置
 
                 try
@@ -223,13 +161,13 @@ class Program
                     var imagePathConfig = configuration["BlogSettings:ImageOutputPath"];
                     var templatePathConfig = configuration["BlogSettings:TemplatePath"];
                     var clearOutputDirectory =
-                        configuration.GetValue<bool>("BlogSettings:ClearOutputDirectoryOnStart", false);
+                        configuration.GetValue("BlogSettings:ClearOutputDirectoryOnStart", false);
 
-                    // 解析相對路徑 - 以執行檔目錄為基準
-                    contentPathConfig = ResolveRelativePath(contentPathConfig, executableDirectory);
-                    outputPathConfig = ResolveRelativePath(outputPathConfig, executableDirectory);
-                    imagePathConfig = ResolveRelativePath(imagePathConfig, executableDirectory);
-                    templatePathConfig = ResolveRelativePath(templatePathConfig, executableDirectory);
+                    // 使用 FileService 解析相對路徑 - 以執行檔目錄為基準
+                    contentPathConfig = fileService.ResolveRelativePath(contentPathConfig, executableDirectory);
+                    outputPathConfig = fileService.ResolveRelativePath(outputPathConfig, executableDirectory);
+                    imagePathConfig = fileService.ResolveRelativePath(imagePathConfig, executableDirectory);
+                    templatePathConfig = fileService.ResolveRelativePath(templatePathConfig, executableDirectory);
 
                     Console.WriteLine($"當前工作目錄: {Directory.GetCurrentDirectory()}");
                     Console.WriteLine($"內容目錄: {contentPathConfig}");
@@ -247,38 +185,39 @@ class Program
                         Environment.Exit(1);
                     }
 
-                    // 檢查目錄是否存在
-                    if (!Directory.Exists(contentPathConfig))
+                    // 檢查目錄是否存在 - 使用 FileService
+                    if (!fileService.DirectoryExists(contentPathConfig))
                     {
                         Console.WriteLine($"錯誤: 內容目錄不存在: {contentPathConfig}");
                         Console.WriteLine($"請建立目錄或修改設定檔中的 BlogContentPath");
                         Environment.Exit(1);
                     }
 
-                    // 處理輸出目錄
-                    if (clearOutputDirectory && Directory.Exists(outputPathConfig))
+                    // 處理輸出目錄 - 使用 FileService
+                    if (clearOutputDirectory && fileService.DirectoryExists(outputPathConfig))
                     {
                         Console.WriteLine($"正在清除輸出目錄: {outputPathConfig}");
                         logger.LogInformation("開始清除輸出目錄: {OutputPath}", outputPathConfig);
 
-                        await ClearOutputDirectoryAsync(outputPathConfig, logger);
+                        // 使用 FileService 的方法
+                        await fileService.ClearOutputDirectoryAsync(outputPathConfig);
 
                         Console.WriteLine("輸出目錄已清除");
                         logger.LogInformation("輸出目錄清除完成");
                     }
 
-                    // 確保輸出目錄存在
-                    if (!Directory.Exists(outputPathConfig))
+                    // 確保輸出目錄存在 - 使用 FileService
+                    if (!fileService.DirectoryExists(outputPathConfig))
                     {
                         Console.WriteLine($"建立輸出目錄: {outputPathConfig}");
-                        Directory.CreateDirectory(outputPathConfig);
+                        fileService.CreateDirectory(outputPathConfig);
                     }
 
-                    // 確保圖片輸出目錄存在
-                    if (!string.IsNullOrEmpty(imagePathConfig) && !Directory.Exists(imagePathConfig))
+                    // 確保圖片輸出目錄存在 - 使用 FileService
+                    if (!string.IsNullOrEmpty(imagePathConfig) && !fileService.DirectoryExists(imagePathConfig))
                     {
                         Console.WriteLine($"建立圖片輸出目錄: {imagePathConfig}");
-                        Directory.CreateDirectory(imagePathConfig);
+                        fileService.CreateDirectory(imagePathConfig);
                     }
 
                     logger.LogInformation("開始執行轉換作業...");
@@ -328,24 +267,5 @@ class Program
 
         // 執行命令列解析
         await rootCommand.InvokeAsync(args);
-    }
-
-    /// <summary>
-    /// 解析相對路徑，以執行檔目錄為基準
-    /// </summary>
-    /// <param name="path">原始路徑</param>
-    /// <param name="basePath">基準路徑（執行檔目錄）</param>
-    /// <returns>解析後的絕對路徑</returns>
-    private static string? ResolveRelativePath(string? path, string basePath)
-    {
-        if (string.IsNullOrEmpty(path))
-            return path;
-
-        // 如果已經是絕對路徑，直接返回
-        if (Path.IsPathRooted(path))
-            return path;
-
-        // 相對路徑，以執行檔目錄為基準
-        return Path.GetFullPath(Path.Combine(basePath, path));
     }
 }

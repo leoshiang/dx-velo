@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Velo.Models;
+using Velo.Services.Abstractions;
 
 namespace Velo.Services;
 
@@ -22,6 +23,43 @@ public class TemplateService(
     IFileService fileService,
     ILogger<TemplateService> logger) : ITemplateService
 {
+    #region 輔助方法
+
+    /// <summary>
+    /// 在文章列表循環中渲染單篇文章的模板
+    /// </summary>
+    /// <param name="postTemplate">文章的模板片段</param>
+    /// <param name="post">文章物件</param>
+    /// <returns>處理完變數替換的單篇文章 HTML</returns>
+    /// <remarks>
+    /// 這個方法專門用於處理 {{#each Posts}} 循環內的每篇文章
+    /// 會替換所有可用的文章變數，並處理條件語法
+    /// </remarks>
+    private string RenderSinglePostInLoop(string postTemplate, BlogPost post)
+    {
+        var processed = postTemplate;
+
+        // 替換基本文章變數
+        processed = processed
+            .Replace("{{Title}}", post.Title)
+            .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
+            .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
+            .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
+            .Replace("{{Author}}", post.Author ?? string.Empty)
+            .Replace("{{CategoriesPlain}}", string.Join(" / ", post.Categories))
+            .Replace("{{TagsPlain}}", string.Join(" ", post.Tags.Select(t => $"#{t}")))
+            .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
+            .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString())
+            .Replace("{{Slug}}", post.Slug);
+
+        // 處理條件語法（在循環內同樣支援條件判斷）
+        processed = ProcessConditionalBlocks(processed, post);
+
+        return processed;
+    }
+
+    #endregion
+
     #region 公開方法 - 主要渲染入口
 
     /// <summary>
@@ -317,7 +355,7 @@ public class TemplateService(
         try
         {
             // 載入自定義模板檔案
-            var template = await fileService.ReadFileAsync(templatePath);
+            var template = await fileService.ReadAllTextAsync(templatePath);
             var postsList = posts.ToList();
 
             // 替換基本變數
@@ -352,7 +390,7 @@ public class TemplateService(
         try
         {
             // 載入自定義模板檔案
-            var template = await fileService.ReadFileAsync(templatePath);
+            var template = await fileService.ReadAllTextAsync(templatePath);
 
             // 替換基本變數
             template = template
@@ -527,43 +565,6 @@ public class TemplateService(
         sb.AppendLine("</html>");
 
         return sb.ToString();
-    }
-
-    #endregion
-
-    #region 輔助方法
-
-    /// <summary>
-    /// 在文章列表循環中渲染單篇文章的模板
-    /// </summary>
-    /// <param name="postTemplate">文章的模板片段</param>
-    /// <param name="post">文章物件</param>
-    /// <returns>處理完變數替換的單篇文章 HTML</returns>
-    /// <remarks>
-    /// 這個方法專門用於處理 {{#each Posts}} 循環內的每篇文章
-    /// 會替換所有可用的文章變數，並處理條件語法
-    /// </remarks>
-    private string RenderSinglePostInLoop(string postTemplate, BlogPost post)
-    {
-        var processed = postTemplate;
-
-        // 替換基本文章變數
-        processed = processed
-            .Replace("{{Title}}", post.Title)
-            .Replace("{{HtmlFilePath}}", post.HtmlFilePath)
-            .Replace("{{PublishedDate}}", post.PublishedDate.ToString("yyyy-MM-dd"))
-            .Replace("{{PublishedDateLong}}", post.PublishedDate.ToString("yyyy年MM月dd日"))
-            .Replace("{{Author}}", post.Author ?? string.Empty)
-            .Replace("{{CategoriesPlain}}", string.Join(" / ", post.Categories))
-            .Replace("{{TagsPlain}}", string.Join(" ", post.Tags.Select(t => $"#{t}")))
-            .Replace("{{FirstImageUrl}}", post.FirstImageUrl)
-            .Replace("{{ImageCount}}", post.ImagePaths.Count.ToString())
-            .Replace("{{Slug}}", post.Slug);
-
-        // 處理條件語法（在循環內同樣支援條件判斷）
-        processed = ProcessConditionalBlocks(processed, post);
-
-        return processed;
     }
 
     #endregion

@@ -3,6 +3,7 @@ using Markdig;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Velo.Models;
+using Velo.Services.Abstractions;
 
 namespace Velo.Services;
 
@@ -23,31 +24,6 @@ public class MarkdownToHtmlConverter(
     ILogger<MarkdownToHtmlConverter> logger)
     : IMarkdownToHtmlService
 {
-    #region 靜態常數和設定
-
-    /// <summary>
-    /// 用於匹配 Markdown 中圖片語法的正規表達式
-    /// 匹配格式：![alt text](image_path)
-    /// </summary>
-    private static readonly Regex ImageRegex = new(@"!\[.*?\]\((.*?)\)", RegexOptions.Compiled);
-
-    /// <summary>
-    /// Markdig 處理管線設定
-    /// 包含所有常用的 Markdown 擴展功能
-    /// </summary>
-    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions() // 高級擴展功能
-        .UseEmojiAndSmiley() // 表情符號支援
-        .UseGenericAttributes() // 通用屬性語法
-        .UsePipeTables() // 表格支援
-        .UseTaskLists() // 任務清單支援
-        .UseAutoLinks() // 自動連結轉換
-        .UseBootstrap() // Bootstrap CSS 類別
-        .UseMediaLinks() // 媒體連結支援
-        .Build();
-
-    #endregion
-
     #region 私有字段
 
     /// <summary>
@@ -57,85 +33,6 @@ public class MarkdownToHtmlConverter(
     /// 用於追蹤需要複製的圖片檔案
     /// </summary>
     private readonly Dictionary<string, string> _imageMapping = new();
-
-    #endregion
-
-    #region 公開方法
-
-    /// <summary>
-    /// 轉換並儲存所有文章
-    /// 這是主要的批次處理方法，執行完整的部落格生成流程
-    /// </summary>
-    /// <returns>非同步任務</returns>
-    public async Task ConvertAndSaveAllPostsAsync()
-    {
-        logger.LogInformation("開始轉換所有文章...");
-
-        // 清空圖片映射表，準備新的轉換作業
-        _imageMapping.Clear();
-
-        // 取得所有文章和分類樹結構
-        var posts = (await blogService.GetAllPostsAsync()).ToList();
-        var categoryTree = await blogService.GetCategoryTreeAsync();
-
-        logger.LogInformation("找到 {Count} 篇文章", posts.Count);
-
-        // 從設定檔讀取輸出路徑
-        var outputPath = configuration["BlogSettings:HtmlOutputPath"]!;
-        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"]!;
-
-        // 確保輸出目錄存在
-        fileService.EnsureDirectoryExists(outputPath);
-        fileService.EnsureDirectoryExists(imageOutputPath);
-
-        // 並行轉換所有文章
-        var conversionTasks = posts.Select(ConvertAndSavePostAsync).ToArray();
-        await Task.WhenAll(conversionTasks);
-
-        // 複製所有收集到的圖片檔案
-        await CopyImagesAsync();
-
-        // 生成網站首頁
-        await GenerateIndexPageAsync(posts, categoryTree);
-
-        logger.LogInformation("轉換完成，文章 {Count} 篇，圖片 {ImageCount} 張",
-            posts.Count, _imageMapping.Count);
-    }
-
-    /// <summary>
-    /// 將 Markdown 文字轉換為 HTML
-    /// 這是核心的轉換方法，處理 Markdown 語法並輸出 HTML
-    /// </summary>
-    /// <param name="markdown">要轉換的 Markdown 內容</param>
-    /// <param name="sourceFilePath">來源檔案路徑，用於處理相對圖片路徑</param>
-    /// <returns>轉換後的 HTML 內容</returns>
-    public Task<string> ConvertToHtmlAsync(string markdown, string? sourceFilePath = null)
-    {
-        try
-        {
-            logger.LogDebug("開始轉換 Markdown，來源檔案: {SourceFile}", sourceFilePath);
-
-            // 步驟 1: 預處理圖片路徑
-            // 將 Markdown 中的圖片路徑轉換為適合網頁的格式
-            var processedMarkdown = ProcessImagePaths(markdown, sourceFilePath);
-
-            logger.LogDebug("處理後的 Markdown 內容預覽: {Preview}",
-                processedMarkdown.Length > 200 ? processedMarkdown.Substring(0, 200) + "..." : processedMarkdown);
-
-            // 步驟 2: 使用 Markdig 將 Markdown 轉換為 HTML
-            var html = Markdown.ToHtml(processedMarkdown, Pipeline);
-
-            logger.LogDebug("轉換完成的 HTML 內容預覽: {Preview}",
-                html.Length > 200 ? string.Concat(html.AsSpan(0, 200), "...") : html);
-
-            return Task.FromResult(html);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Markdown 轉 HTML 失敗: {FilePath}", sourceFilePath);
-            throw;
-        }
-    }
 
     #endregion
 
@@ -258,13 +155,151 @@ public class MarkdownToHtmlConverter(
 
             // 步驟 7: 儲存最終的 HTML 檔案
             var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, post.HtmlFilePath);
-            await fileService.WriteFileAsync(outputPath, finalHtml);
+            await fileService.WriteAllTextAsync(outputPath, finalHtml);
 
             logger.LogDebug("已轉換: {Title}，圖片數量: {ImageCount}", post.Title, post.ImagePaths.Count);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
+            throw;
+        }
+    }
+
+    #endregion
+
+    #region 私有方法 - 首頁生成
+
+    /// <summary>
+    /// 生成部落格首頁
+    /// 整合所有文章資訊和分類樹，生成完整的首頁 HTML
+    /// </summary>
+    /// <param name="posts">所有文章清單</param>
+    /// <param name="categoryTree">分類樹結構</param>
+    private async Task GenerateIndexPageAsync(List<BlogPost> posts, CategoryNode categoryTree)
+    {
+        logger.LogInformation("開始生成首頁...");
+
+        // 使用模板服務渲染首頁
+        var indexHtml = await templateService.RenderIndexAsync(posts, categoryTree);
+
+        // 多層清理首頁中可能存在的 file:// 路徑
+        for (var i = 0; i < 3; i++)
+        {
+            var beforeClean = indexHtml;
+            indexHtml = CleanFileProtocolPaths(indexHtml);
+
+            // 如果沒有變化，表示清理完成
+            if (beforeClean == indexHtml) break;
+        }
+
+        // 儲存首頁檔案
+        var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
+        await fileService.WriteAllTextAsync(outputPath, indexHtml);
+
+        logger.LogInformation("首頁生成完成");
+    }
+
+    #endregion
+
+    #region 靜態常數和設定
+
+    /// <summary>
+    /// 用於匹配 Markdown 中圖片語法的正規表達式
+    /// 匹配格式：![alt text](image_path)
+    /// </summary>
+    private static readonly Regex ImageRegex = new(@"!\[.*?\]\((.*?)\)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Markdig 處理管線設定
+    /// 包含所有常用的 Markdown 擴展功能
+    /// </summary>
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions() // 高級擴展功能
+        .UseEmojiAndSmiley() // 表情符號支援
+        .UseGenericAttributes() // 通用屬性語法
+        .UsePipeTables() // 表格支援
+        .UseTaskLists() // 任務清單支援
+        .UseAutoLinks() // 自動連結轉換
+        .UseBootstrap() // Bootstrap CSS 類別
+        .UseMediaLinks() // 媒體連結支援
+        .Build();
+
+    #endregion
+
+    #region 公開方法
+
+    /// <summary>
+    /// 轉換並儲存所有文章
+    /// 這是主要的批次處理方法，執行完整的部落格生成流程
+    /// </summary>
+    /// <returns>非同步任務</returns>
+    public async Task ConvertAndSaveAllPostsAsync()
+    {
+        logger.LogInformation("開始轉換所有文章...");
+
+        // 清空圖片映射表，準備新的轉換作業
+        _imageMapping.Clear();
+
+        // 取得所有文章和分類樹結構
+        var posts = (await blogService.GetAllPostsAsync()).ToList();
+        var categoryTree = await blogService.GetCategoryTreeAsync();
+
+        logger.LogInformation("找到 {Count} 篇文章", posts.Count);
+
+        // 從設定檔讀取輸出路徑
+        var outputPath = configuration["BlogSettings:HtmlOutputPath"]!;
+        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"]!;
+
+        // 確保輸出目錄存在
+        fileService.EnsureDirectoryExists(outputPath);
+        fileService.EnsureDirectoryExists(imageOutputPath);
+
+        // 並行轉換所有文章
+        var conversionTasks = posts.Select(ConvertAndSavePostAsync).ToArray();
+        await Task.WhenAll(conversionTasks);
+
+        // 複製所有收集到的圖片檔案
+        await CopyImagesAsync();
+
+        // 生成網站首頁
+        await GenerateIndexPageAsync(posts, categoryTree);
+
+        logger.LogInformation("轉換完成，文章 {Count} 篇，圖片 {ImageCount} 張",
+            posts.Count, _imageMapping.Count);
+    }
+
+    /// <summary>
+    /// 將 Markdown 文字轉換為 HTML
+    /// 這是核心的轉換方法，處理 Markdown 語法並輸出 HTML
+    /// </summary>
+    /// <param name="markdown">要轉換的 Markdown 內容</param>
+    /// <param name="sourceFilePath">來源檔案路徑，用於處理相對圖片路徑</param>
+    /// <returns>轉換後的 HTML 內容</returns>
+    public Task<string> ConvertToHtmlAsync(string markdown, string? sourceFilePath = null)
+    {
+        try
+        {
+            logger.LogDebug("開始轉換 Markdown，來源檔案: {SourceFile}", sourceFilePath);
+
+            // 步驟 1: 預處理圖片路徑
+            // 將 Markdown 中的圖片路徑轉換為適合網頁的格式
+            var processedMarkdown = ProcessImagePaths(markdown, sourceFilePath);
+
+            logger.LogDebug("處理後的 Markdown 內容預覽: {Preview}",
+                processedMarkdown.Length > 200 ? processedMarkdown.Substring(0, 200) + "..." : processedMarkdown);
+
+            // 步驟 2: 使用 Markdig 將 Markdown 轉換為 HTML
+            var html = Markdown.ToHtml(processedMarkdown, Pipeline);
+
+            logger.LogDebug("轉換完成的 HTML 內容預覽: {Preview}",
+                html.Length > 200 ? string.Concat(html.AsSpan(0, 200), "...") : html);
+
+            return Task.FromResult(html);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Markdown 轉 HTML 失敗: {FilePath}", sourceFilePath);
             throw;
         }
     }
@@ -566,40 +601,6 @@ public class MarkdownToHtmlConverter(
 
         // 移除重複的路徑並返回
         return alternatives.Distinct().ToList();
-    }
-
-    #endregion
-
-    #region 私有方法 - 首頁生成
-
-    /// <summary>
-    /// 生成部落格首頁
-    /// 整合所有文章資訊和分類樹，生成完整的首頁 HTML
-    /// </summary>
-    /// <param name="posts">所有文章清單</param>
-    /// <param name="categoryTree">分類樹結構</param>
-    private async Task GenerateIndexPageAsync(List<BlogPost> posts, CategoryNode categoryTree)
-    {
-        logger.LogInformation("開始生成首頁...");
-
-        // 使用模板服務渲染首頁
-        var indexHtml = await templateService.RenderIndexAsync(posts, categoryTree);
-
-        // 多層清理首頁中可能存在的 file:// 路徑
-        for (var i = 0; i < 3; i++)
-        {
-            var beforeClean = indexHtml;
-            indexHtml = CleanFileProtocolPaths(indexHtml);
-
-            // 如果沒有變化，表示清理完成
-            if (beforeClean == indexHtml) break;
-        }
-
-        // 儲存首頁檔案
-        var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
-        await fileService.WriteFileAsync(outputPath, indexHtml);
-
-        logger.LogInformation("首頁生成完成");
     }
 
     #endregion
