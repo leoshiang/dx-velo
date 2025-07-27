@@ -1,10 +1,13 @@
+using System.CommandLine;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.CommandLine; // 引入 System.CommandLine
-using System.CommandLine.Parsing; // 引入 System.CommandLine.Parsing
 using Velo.Services;
+
+// 引入 System.CommandLine
+// 引入 System.CommandLine.Parsing
 
 namespace Velo;
 
@@ -62,7 +65,7 @@ class Program
     /// </summary>
     private static string GetExecutableDirectory()
     {
-        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        var assemblyLocation = Assembly.GetExecutingAssembly().Location;
         if (string.IsNullOrEmpty(assemblyLocation))
         {
             // 在某些情況下（如 PublishSingleFile），Assembly.Location 可能為空
@@ -77,36 +80,36 @@ class Program
     {
         // 1. 定義命令列選項
         var configFileOption = new Option<string?>(
-            new string[] { "--config", "-f" },
+            ["--config", "-f"],
             description: "設定檔名稱 (預設: velo.config.json)",
             getDefaultValue: () => "velo.config.json"
         );
         var contentPathOption = new Option<string?>(
-            new string[] { "--content-path", "-c" },
+            ["--content-path", "-c"],
             description: "Markdown 文章檔案存放目錄"
         );
         var outputPathOption = new Option<string?>(
-            new string[] { "--output-path", "-o" },
+            ["--output-path", "-o"],
             description: "生成的 HTML 檔案輸出目錄"
         );
         var templatePathOption = new Option<string?>(
-            new string[] { "--template-path", "-t" },
+            ["--template-path", "-t"],
             description: "模板檔案存放目錄"
         );
         var imagePathOption = new Option<string?>(
-            new string[] { "--image-path", "-i" },
+            ["--image-path", "-i"],
             description: "圖片資源輸出目錄"
         );
         var clearOutputOption = new Option<bool?>(
-            new string[] { "--clear-output", "-C" }, // 大寫 C 以區分 content
+            ["--clear-output", "-C"], // 大寫 C 以區分 content
             description: "生成前是否清空輸出目錄"
         );
         var autoYamlOption = new Option<bool?>(
-            new string[] { "--auto-yaml", "-a" },
+            ["--auto-yaml", "-a"],
             description: "自動為缺少 Front Matter 的檔案添加"
         );
         var autoSaveModifiedOption = new Option<bool?>(
-            new string[] { "--save-modified", "-s" },
+            ["--save-modified", "-s"],
             description: "自動儲存修改"
         );
 

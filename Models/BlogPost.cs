@@ -44,7 +44,7 @@ public class BlogPost
     /// <summary>
     /// 文章中的所有圖檔路徑陣列（處理後的網頁路徑）
     /// </summary>
-    public List<string> ImagePaths { get; set; } = [];
+    public List<string?> ImagePaths { get; set; } = [];
 
     public DateTime PublishedDate { get; set; }
     public required string Slug { get; set; }
@@ -56,17 +56,15 @@ public class BlogPost
     /// 添加單一圖片路徑
     /// </summary>
     /// <param name="imagePath">圖片路徑</param>
-    public void AddImagePath(string imagePath)
+    public void AddImagePath(string? imagePath)
     {
-        if (!string.IsNullOrEmpty(imagePath) && !ImagePaths.Contains(imagePath))
-        {
-            ImagePaths.Add(imagePath);
+        if (string.IsNullOrEmpty(imagePath) || ImagePaths.Contains(imagePath)) return;
+        ImagePaths.Add(imagePath);
 
-            // 如果這是第一張圖片，設定為首圖
-            if (ImagePaths.Count == 1)
-            {
-                SetFirstImageUrl(imagePath);
-            }
+        // 如果這是第一張圖片，設定為首圖
+        if (ImagePaths.Count == 1)
+        {
+            SetFirstImageUrl(imagePath);
         }
     }
 
@@ -84,38 +82,21 @@ public class BlogPost
     /// </summary>
     private string GetFileHashCode()
     {
-        if (string.IsNullOrEmpty(SourceFilePath))
-        {
+        return string.IsNullOrEmpty(SourceFilePath)
+            ?
             // 如果沒有來源檔案路徑，使用 Title 和 HtmlFileId 來生成 hash
-            return PathUtils.GenerateHashCode(Title + HtmlFileId);
-        }
-
-        // 使用來源檔案路徑生成 8 位16進制 hash
-        return PathUtils.GenerateHashCode(SourceFilePath);
+            PathUtils.GenerateHashCode(Title + HtmlFileId)
+            :
+            // 使用來源檔案路徑生成 8 位16進制 hash
+            PathUtils.GenerateHashCode(SourceFilePath);
     }
 
     /// <summary>
     /// 設定第一張圖片的 URL
     /// </summary>
     /// <param name="imageUrl">圖片的網頁 URL（相對路徑或絕對路徑）</param>
-    public void SetFirstImageUrl(string imageUrl)
+    private void SetFirstImageUrl(string? imageUrl)
     {
         FirstImageUrl = imageUrl ?? string.Empty;
-    }
-
-    /// <summary>
-    /// 更新圖片路徑列表並自動設定第一張圖片
-    /// </summary>
-    /// <param name="imagePaths">處理後的圖片路徑列表</param>
-    public void UpdateImagePaths(IEnumerable<string> imagePaths)
-    {
-        ImagePaths.Clear();
-        ImagePaths.AddRange(imagePaths);
-
-        // 自動設定第一張圖片
-        if (ImagePaths.Count > 0 && string.IsNullOrEmpty(FirstImageUrl))
-        {
-            SetFirstImageUrl(ImagePaths[0]);
-        }
     }
 }

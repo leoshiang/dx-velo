@@ -1,7 +1,7 @@
 ﻿namespace Velo.Models;
 
 /// <summary>
-/// 【新模型】代表分類樹中的一個節點。
+/// 代表分類樹中的一個節點。
 /// </summary>
 public class CategoryNode
 {

@@ -27,30 +27,24 @@ public class MarkdownToHtmlConverter(
         .UseMediaLinks()
         .Build();
 
-    private readonly IBlogService _blogService = blogService;
-    private readonly IConfiguration _configuration = configuration;
-    private readonly IFileService _fileService = fileService;
-
     private readonly Dictionary<string, string> _imageMapping = new();
-    private readonly ILogger<MarkdownToHtmlConverter> _logger = logger;
-    private readonly ITemplateService _templateService = templateService;
 
     public async Task ConvertAndSaveAllPostsAsync()
     {
-        _logger.LogInformation("開始轉換所有文章...");
+        logger.LogInformation("開始轉換所有文章...");
 
         _imageMapping.Clear();
 
-        var posts = (await _blogService.GetAllPostsAsync()).ToList();
-        var categoryTree = await _blogService.GetCategoryTreeAsync();
+        var posts = (await blogService.GetAllPostsAsync()).ToList();
+        var categoryTree = await blogService.GetCategoryTreeAsync();
 
-        _logger.LogInformation("找到 {Count} 篇文章", posts.Count);
+        logger.LogInformation("找到 {Count} 篇文章", posts.Count);
 
-        var outputPath = _configuration["BlogSettings:HtmlOutputPath"]!;
-        var imageOutputPath = _configuration["BlogSettings:ImageOutputPath"]!;
+        var outputPath = configuration["BlogSettings:HtmlOutputPath"]!;
+        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"]!;
 
-        _fileService.EnsureDirectoryExists(outputPath);
-        _fileService.EnsureDirectoryExists(imageOutputPath);
+        fileService.EnsureDirectoryExists(outputPath);
+        fileService.EnsureDirectoryExists(imageOutputPath);
 
         // 轉換文章
         var conversionTasks = posts.Select(ConvertAndSavePostAsync).ToArray();
@@ -62,7 +56,7 @@ public class MarkdownToHtmlConverter(
         // 生成首頁
         await GenerateIndexPageAsync(posts, categoryTree);
 
-        _logger.LogInformation("轉換完成，文章 {Count} 篇，圖片 {ImageCount} 張",
+        logger.LogInformation("轉換完成，文章 {Count} 篇，圖片 {ImageCount} 張",
             posts.Count, _imageMapping.Count);
     }
 
@@ -70,25 +64,25 @@ public class MarkdownToHtmlConverter(
     {
         try
         {
-            _logger.LogDebug("開始轉換 Markdown，來源檔案: {SourceFile}", sourceFilePath);
+            logger.LogDebug("開始轉換 Markdown，來源檔案: {SourceFile}", sourceFilePath);
 
             // 先處理圖片路徑
             var processedMarkdown = ProcessImagePaths(markdown, sourceFilePath);
 
-            _logger.LogDebug("處理後的 Markdown 內容預覽: {Preview}",
+            logger.LogDebug("處理後的 Markdown 內容預覽: {Preview}",
                 processedMarkdown.Length > 200 ? processedMarkdown.Substring(0, 200) + "..." : processedMarkdown);
 
             // 轉換為 HTML
             var html = Markdown.ToHtml(processedMarkdown, Pipeline);
 
-            _logger.LogDebug("轉換完成的 HTML 內容預覽: {Preview}",
+            logger.LogDebug("轉換完成的 HTML 內容預覽: {Preview}",
                 html.Length > 200 ? html.Substring(0, 200) + "..." : html);
 
             return Task.FromResult(html);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Markdown 轉 HTML 失敗: {FilePath}", sourceFilePath);
+            logger.LogError(ex, "Markdown 轉 HTML 失敗: {FilePath}", sourceFilePath);
             throw;
         }
     }
@@ -127,11 +121,11 @@ public class MarkdownToHtmlConverter(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "URL 解碼失敗: {Path}", encodedPath);
+                    logger.LogWarning(ex, "URL 解碼失敗: {Path}", encodedPath);
                     fileName = Path.GetFileName(encodedPath);
                 }
 
-                _logger.LogWarning("清理 file:// 路徑: {OriginalPath} -> images/{FileName}",
+                logger.LogWarning("清理 file:// 路徑: {OriginalPath} -> images/{FileName}",
                     match.Value, fileName);
 
                 return string.Format(replacement, fileName);
@@ -163,7 +157,7 @@ public class MarkdownToHtmlConverter(
     {
         try
         {
-            _logger.LogDebug("開始處理文章: {Title}", post.Title);
+            logger.LogDebug("開始處理文章: {Title}", post.Title);
 
             // 清空之前的圖片路徑
             post.ClearImages();
@@ -178,10 +172,10 @@ public class MarkdownToHtmlConverter(
             ExtractImagePathsFromHtml(post, htmlContent);
 
             // 使用模板渲染
-            var finalHtml = await _templateService.RenderPostAsync(post, htmlContent);
+            var finalHtml = await templateService.RenderPostAsync(post, htmlContent);
 
             // 多層清理 - 處理模板可能生成的 file:// 路徑
-            for (int i = 0; i < 3; i++) // 執行 3 次清理
+            for (var i = 0; i < 3; i++) // 執行 3 次清理
             {
                 var beforeClean = finalHtml;
                 finalHtml = CleanFileProtocolPaths(finalHtml);
@@ -191,24 +185,24 @@ public class MarkdownToHtmlConverter(
             }
 
             // 儲存 HTML 檔案
-            var outputPath = Path.Combine(_configuration["BlogSettings:HtmlOutputPath"]!, post.HtmlFilePath);
-            await _fileService.WriteFileAsync(outputPath, finalHtml);
+            var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, post.HtmlFilePath);
+            await fileService.WriteFileAsync(outputPath, finalHtml);
 
-            _logger.LogDebug("已轉換: {Title}，圖片數量: {ImageCount}", post.Title, post.ImagePaths.Count);
+            logger.LogDebug("已轉換: {Title}，圖片數量: {ImageCount}", post.Title, post.ImagePaths.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
+            logger.LogError(ex, "轉換文章失敗: {Title}", post.Title);
             throw;
         }
     }
 
     private async Task CopyImagesAsync()
     {
-        _logger.LogInformation("開始複製圖片...");
+        logger.LogInformation("開始複製圖片...");
 
-        var imageOutputPath = _configuration["BlogSettings:ImageOutputPath"]!;
-        _fileService.EnsureDirectoryExists(imageOutputPath);
+        var imageOutputPath = configuration["BlogSettings:ImageOutputPath"]!;
+        fileService.EnsureDirectoryExists(imageOutputPath);
 
         var copyTasks = _imageMapping.Select(async kvp =>
         {
@@ -218,17 +212,17 @@ public class MarkdownToHtmlConverter(
 
             try
             {
-                await _fileService.CopyFileAsync(sourcePath, destinationPath);
-                _logger.LogDebug("圖片複製成功: {Source} -> {Destination}", sourcePath, destinationPath);
+                await fileService.CopyFileAsync(sourcePath, destinationPath);
+                logger.LogDebug("圖片複製成功: {Source} -> {Destination}", sourcePath, destinationPath);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "圖片複製失敗: {Source} -> {Destination}", sourcePath, destinationPath);
+                logger.LogError(ex, "圖片複製失敗: {Source} -> {Destination}", sourcePath, destinationPath);
             }
         });
 
         await Task.WhenAll(copyTasks);
-        _logger.LogInformation("圖片複製完成");
+        logger.LogInformation("圖片複製完成");
     }
 
     private void ExtractImagePathsFromHtml(BlogPost post, string htmlContent)
@@ -247,7 +241,7 @@ public class MarkdownToHtmlConverter(
             // 跳過 file:// 路徑（已經被清理掉了，但保留檢查）
             if (imageSrc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning("跳過 file:// 路徑: {ImagePath}", imageSrc);
+                logger.LogWarning("跳過 file:// 路徑: {ImagePath}", imageSrc);
                 continue;
             }
 
@@ -273,40 +267,21 @@ public class MarkdownToHtmlConverter(
             }
             else
             {
-                _logger.LogWarning("忽略完整路徑: {ImagePath}", imageSrc);
+                logger.LogWarning("忽略完整路徑: {ImagePath}", imageSrc);
             }
         }
 
-        _logger.LogDebug("文章 {Title} 找到 {Count} 張有效圖片", post.Title, post.ImagePaths.Count);
-    }
-
-    private string ForceCleanAllFilePaths(string html)
-    {
-        // 強制清理所有可能的 file:// 路徑格式
-        var allFilePathRegex = new Regex(
-            @"file:///[^""'\s>]*",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        return allFilePathRegex.Replace(html, match =>
-        {
-            var fullPath = Uri.UnescapeDataString(match.Value.Substring(8)); // 移除 "file:///"
-            var fileName = Path.GetFileName(fullPath);
-
-            _logger.LogWarning("強制清理殘留的 file:// 路徑: {OriginalPath} -> images/{FileName}",
-                match.Value, fileName);
-
-            return $"images/{fileName}";
-        });
+        logger.LogDebug("文章 {Title} 找到 {Count} 張有效圖片", post.Title, post.ImagePaths.Count);
     }
 
     private async Task GenerateIndexPageAsync(List<BlogPost> posts, CategoryNode categoryTree)
     {
-        _logger.LogInformation("開始生成首頁...");
+        logger.LogInformation("開始生成首頁...");
 
-        var indexHtml = await _templateService.RenderIndexAsync(posts, categoryTree);
+        var indexHtml = await templateService.RenderIndexAsync(posts, categoryTree);
 
         // 多層清理首頁中可能的 file:// 路徑
-        for (int i = 0; i < 3; i++)
+        for (var i = 0; i < 3; i++)
         {
             var beforeClean = indexHtml;
             indexHtml = CleanFileProtocolPaths(indexHtml);
@@ -314,16 +289,16 @@ public class MarkdownToHtmlConverter(
             if (beforeClean == indexHtml) break;
         }
 
-        var outputPath = Path.Combine(_configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
-        await _fileService.WriteFileAsync(outputPath, indexHtml);
+        var outputPath = Path.Combine(configuration["BlogSettings:HtmlOutputPath"]!, "index.html");
+        await fileService.WriteFileAsync(outputPath, indexHtml);
 
-        _logger.LogInformation("首頁生成完成");
+        logger.LogInformation("首頁生成完成");
     }
 
     private List<string> GetAlternativeImagePaths(string imagePath)
     {
         var alternatives = new List<string>();
-        var blogContentPath = _configuration["BlogContentPath"]!;
+        var blogContentPath = configuration["BlogContentPath"]!;
 
         // 如果是絕對路徑，嘗試不同的基礎目錄
         if (Path.IsPathFullyQualified(imagePath))
@@ -397,7 +372,7 @@ public class MarkdownToHtmlConverter(
     {
         try
         {
-            _logger.LogDebug("處理圖片路徑: {ImageSrc}", imageSrc);
+            logger.LogDebug("處理圖片路徑: {ImageSrc}", imageSrc);
 
             // 處理網路圖片
             if (imageSrc.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -411,18 +386,18 @@ public class MarkdownToHtmlConverter(
             if (imageSrc.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
                 imageSrc = imageSrc.Substring(7); // 移除 "file://"
-                _logger.LogDebug("移除 file:// 前綴: {Path}", imageSrc);
+                logger.LogDebug("移除 file:// 前綴: {Path}", imageSrc);
             }
 
             // URL 解碼（處理中文路徑）
             try
             {
                 imageSrc = Uri.UnescapeDataString(imageSrc);
-                _logger.LogDebug("URL 解碼後: {Path}", imageSrc);
+                logger.LogDebug("URL 解碼後: {Path}", imageSrc);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "URL 解碼失敗，使用原始路徑: {Path}", imageSrc);
+                logger.LogWarning(ex, "URL 解碼失敗，使用原始路徑: {Path}", imageSrc);
             }
 
             // 確定絕對路徑
@@ -435,13 +410,13 @@ public class MarkdownToHtmlConverter(
             {
                 // 相對路徑，需要結合源文件目錄
                 var sourceDir = string.IsNullOrEmpty(sourceFilePath)
-                    ? _configuration["BlogContentPath"]!
+                    ? configuration["BlogContentPath"]!
                     : Path.GetDirectoryName(sourceFilePath)!;
 
                 absoluteImagePath = Path.GetFullPath(Path.Combine(sourceDir, imageSrc));
             }
 
-            _logger.LogDebug("檢查圖片檔案存在性: {Path}", absoluteImagePath);
+            logger.LogDebug("檢查圖片檔案存在性: {Path}", absoluteImagePath);
 
             if (File.Exists(absoluteImagePath))
             {
@@ -456,17 +431,17 @@ public class MarkdownToHtmlConverter(
                 // 在映射表中只存檔名，用於檔案複製
                 _imageMapping[absoluteImagePath] = uniqueFileName;
 
-                _logger.LogInformation("圖片路徑映射成功: {Original} -> {New}", originalSrc, newImagePath);
+                logger.LogInformation("圖片路徑映射成功: {Original} -> {New}", originalSrc, newImagePath);
                 return newImagePath;
             }
 
-            _logger.LogWarning("圖片檔案不存在: {ImagePath}", absoluteImagePath);
+            logger.LogWarning("圖片檔案不存在: {ImagePath}", absoluteImagePath);
 
             // 嘗試在不同的可能目錄中尋找圖片
             var alternativePaths = GetAlternativeImagePaths(imageSrc);
             foreach (var altPath in alternativePaths)
             {
-                _logger.LogDebug("嘗試替代路徑: {Path}", altPath);
+                logger.LogDebug("嘗試替代路徑: {Path}", altPath);
                 if (File.Exists(altPath))
                 {
                     var fileName = Path.GetFileName(altPath);
@@ -475,7 +450,7 @@ public class MarkdownToHtmlConverter(
 
                     _imageMapping[altPath] = uniqueFileName;
 
-                    _logger.LogInformation("在替代路徑找到圖片: {Original} -> {New}", altPath, newImagePath);
+                    logger.LogInformation("在替代路徑找到圖片: {Original} -> {New}", altPath, newImagePath);
                     return newImagePath;
                 }
             }
@@ -486,7 +461,7 @@ public class MarkdownToHtmlConverter(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "處理圖片路徑失敗: {ImageSrc}", imageSrc);
+            logger.LogError(ex, "處理圖片路徑失敗: {ImageSrc}", imageSrc);
             return imageSrc;
         }
     }

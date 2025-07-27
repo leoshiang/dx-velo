@@ -16,9 +16,4 @@ public interface IBlogService
     Task<CategoryNode> GetCategoryTreeAsync();
 
     Task<BlogPost?> GetPostBySlugAsync(string slug);
-
-    /// <summary>
-    /// 根據關鍵字非同步搜尋文章。
-    /// </summary>
-    Task<IEnumerable<BlogPost>> SearchPostsAsync(string query);
 }

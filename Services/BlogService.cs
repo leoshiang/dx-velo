@@ -14,7 +14,7 @@ public class BlogService(ILogger<BlogService> logger, IConfiguration configurati
 {
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private readonly List<BlogPost> _posts = [];
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private bool _isLoaded;
 
     public async Task ForceScanAndReloadPostsAsync()
@@ -49,7 +49,7 @@ public class BlogService(ILogger<BlogService> logger, IConfiguration configurati
         {
             Name = "Root",
             PathSegment = "",
-            Children = new List<CategoryNode>()
+            Children = []
         };
 
         lock (_sync)
@@ -78,7 +78,7 @@ public class BlogService(ILogger<BlogService> logger, IConfiguration configurati
                         {
                             Name = category,
                             PathSegment = currentPath,
-                            Children = new List<CategoryNode>(),
+                            Children = [],
                             PostCount = 0
                         };
                         currentNode.Children.Add(existingChild);
@@ -104,31 +104,6 @@ public class BlogService(ILogger<BlogService> logger, IConfiguration configurati
         lock (_sync)
         {
             return _posts.FirstOrDefault(p => p.Slug == slug);
-        }
-    }
-
-    public async Task<IEnumerable<BlogPost>> SearchPostsAsync(string query)
-    {
-        if (!_isLoaded)
-        {
-            await LoadPostsAsync();
-        }
-
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return await GetAllPostsAsync();
-        }
-
-        var searchTerm = query.ToLower();
-
-        lock (_sync)
-        {
-            return _posts.Where(p => p.Title.ToLower().Contains(searchTerm) ||
-                                     p.ContentHtml.ToLower().Contains(searchTerm) ||
-                                     p.Tags.Any(t => t.ToLower().Contains(searchTerm)) ||
-                                     p.Categories.Any(c => c.ToLower().Contains(searchTerm)))
-                .OrderByDescending(p => p.PublishedDate)
-                .ToList();
         }
     }
 
@@ -397,7 +372,7 @@ draft: false
                 SourceFilePath = filePath,
                 ContentHtml = contentWithoutYaml,
                 PublishedDate = File.GetLastWriteTime(filePath),
-                Tags = new List<string>(),
+                Tags = [],
                 Categories = [..directoryCategories], // 使用目錄結構分類
                 HtmlFileId = Guid.NewGuid().ToString("N")
             };
@@ -537,8 +512,33 @@ draft: false
                 .Select(s => s.Trim())
                 .Where(s => !string.IsNullOrEmpty(s))
                 .ToList(),
-            _ => new List<string>()
+            _ => []
         };
+    }
+
+    public async Task<IEnumerable<BlogPost>> SearchPostsAsync(string query)
+    {
+        if (!_isLoaded)
+        {
+            await LoadPostsAsync();
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return await GetAllPostsAsync();
+        }
+
+        var searchTerm = query.ToLower();
+
+        lock (_sync)
+        {
+            return _posts.Where(p => p.Title.ToLower().Contains(searchTerm) ||
+                                     p.ContentHtml.ToLower().Contains(searchTerm) ||
+                                     p.Tags.Any(t => t.ToLower().Contains(searchTerm)) ||
+                                     p.Categories.Any(c => c.ToLower().Contains(searchTerm)))
+                .OrderByDescending(p => p.PublishedDate)
+                .ToList();
+        }
     }
 
     /// <summary>

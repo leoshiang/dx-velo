@@ -7,10 +7,7 @@ public static class PathUtils
     /// </summary>
     public static string GenerateHashCode(string input)
     {
-        if (string.IsNullOrEmpty(input))
-            return "00000000";
-
-        return Math.Abs(input.GetHashCode()).ToString("x8");
+        return string.IsNullOrEmpty(input) ? "00000000" : Math.Abs(input.GetHashCode()).ToString("x8");
     }
 
     /// <summary>
@@ -18,17 +15,13 @@ public static class PathUtils
     /// </summary>
     public static string ProcessFileName(string fileName)
     {
-        if (string.IsNullOrEmpty(fileName))
-            return "untitled";
-
-        // 轉換為小寫並清理路徑
-        return Sanitize(fileName.ToLower());
+        return string.IsNullOrEmpty(fileName) ? "untitled" : Sanitize(fileName.ToLower());
     }
 
     /// <summary>
     /// 將檔名或資料夾名稱中的無效字元轉成 '-'
     /// </summary>
-    public static string Sanitize(string path) =>
+    private static string Sanitize(string path) =>
         path.Replace(" ", "-")
             .Replace("　", "-") // 全形空白
             .Replace("/", "-")
