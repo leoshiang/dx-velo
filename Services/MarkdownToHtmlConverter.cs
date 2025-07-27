@@ -458,7 +458,7 @@ public class MarkdownToHtmlConverter(
             var tagsHtml = string.Empty;
             if (post.Tags.Count > 0)
             {
-                tagsHtml = string.Join("", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
+                tagsHtml = string.Join("．", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
             }
 
             var categoriesHtml = string.Empty;
@@ -1282,7 +1282,7 @@ public class MarkdownToHtmlConverter(
                     var tagsHtml = string.Empty;
                     if (post.Tags.Count > 0)
                     {
-                        tagsHtml = string.Join("", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
+                        tagsHtml = string.Join("．", post.Tags.Select(tag => $"<span class=\"tag\">{tag}</span>"));
                     }
 
                     var categoriesHtml = string.Empty;
