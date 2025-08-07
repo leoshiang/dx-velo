@@ -579,9 +579,12 @@
                 }
 
                 let matchesCategory = true;
-                if (this.currentCategoryFilter) {
-                    matchesCategory = (categories + '/').includes(this.currentCategoryFilter.toLowerCase() + '/');
-                }
+								if (this.currentCategoryFilter) {
+										const normalizedCategories = categories.replace(/\s*\/\s*/g, '/') + '/';
+										const normalizedFilter = this.currentCategoryFilter.toLowerCase().replace(/\s*\/\s*/g, '/') + '/';
+										
+										matchesCategory = normalizedCategories.includes(normalizedFilter);
+								}
 
                 const shouldShow = matchesSearch && matchesCategory;
                 post.classList.toggle('hidden', !shouldShow);

@@ -150,55 +150,55 @@ public class TemplateService(
     }
 
     /// <summary>
-    /// 遞歸生成分類節點的 HTML 結構
-    /// </summary>
-    /// <param name="node">當前分類節點</param>
-    /// <param name="parentPath">父分類路徑（用於建立完整路徑）</param>
-    /// <returns>分類節點及其子節點的 HTML 字串</returns>
-    /// <remarks>
-    /// 生成的 HTML 結構：
-    /// - 每個分類項目包含展開/收合按鈕（如果有子分類）
-    /// - 顯示文章數量的計數器
-    /// - 支援點擊篩選功能的 data-category-path 屬性
-    /// - 遞歸處理子分類，形成樹狀結構
-    /// </remarks>
-    private string GenerateCategoryNodeHtml(CategoryNode node, string parentPath)
+/// 遞歸生成分類節點的 HTML 結構
+/// </summary>
+/// <param name="node">當前分類節點</param>
+/// <param name="parentPath">父分類路徑（用於建立完整路徑）</param>
+/// <returns>分類節點及其子節點的 HTML 字串</returns>
+/// <remarks>
+/// 生成的 HTML 結構：
+/// - 每個分類項目包含展開/收合按鈕（如果有子分類）
+/// - 顯示文章數量的計數器
+/// - 支援點擊篩選功能的 data-category-path 和 data-category-name 屬性
+/// - 遞歸處理子分類，形成樹狀結構
+/// </remarks>
+private string GenerateCategoryNodeHtml(CategoryNode node, string parentPath)
+{
+    var sb = new StringBuilder();
+
+    foreach (var child in node.Children)
     {
-        var sb = new StringBuilder();
+        // 建立當前分類的完整路徑
+        var currentPath = string.IsNullOrEmpty(parentPath) ? child.Name : $"{parentPath}/{child.Name}";
+        var hasChildren = child.Children.Count > 0;
 
-        foreach (var child in node.Children)
+        sb.AppendLine("<div class=\"category-node\">");
+        sb.AppendLine($"  <div class=\"category-item\" data-category-path=\"{currentPath}\" data-category-name=\"{child.Name}\">");
+
+        // 根據是否有子分類顯示不同的圖示
+        sb.AppendLine($"    <span class=\"category-name\">{(hasChildren ? "📁" : "📄")} {child.Name}</span>");
+
+        // 如果有文章，顯示文章數量
+        if (child.PostCount > 0)
         {
-            // 建立當前分類的完整路徑
-            var currentPath = string.IsNullOrEmpty(parentPath) ? child.Name : $"{parentPath}/{child.Name}";
-            var hasChildren = child.Children.Count > 0;
-
-            sb.AppendLine("<div class=\"category-node\">");
-            sb.AppendLine($"  <div class=\"category-item\" data-category-path=\"{currentPath}\">");
-
-            // 根據是否有子分類顯示不同的圖示
-            sb.AppendLine($"    <span class=\"category-name\">{(hasChildren ? "📁" : "📄")} {child.Name}</span>");
-
-            // 如果有文章，顯示文章數量
-            if (child.PostCount > 0)
-            {
-                sb.AppendLine($"    <span class=\"category-count\">{child.PostCount}</span>");
-            }
-
-            sb.AppendLine("  </div>");
-
-            // 如果有子分類，遞歸生成子分類的 HTML
-            if (hasChildren)
-            {
-                sb.AppendLine("  <div class=\"category-children\">");
-                sb.AppendLine(GenerateCategoryNodeHtml(child, currentPath));
-                sb.AppendLine("  </div>");
-            }
-
-            sb.AppendLine("</div>");
+            sb.AppendLine($"    <span class=\"category-count\">{child.PostCount}</span>");
         }
 
-        return sb.ToString();
+        sb.AppendLine("  </div>");
+
+        // 如果有子分類，遞歸生成子分類的 HTML
+        if (hasChildren)
+        {
+            sb.AppendLine("  <div class=\"category-children\">");
+            sb.AppendLine(GenerateCategoryNodeHtml(child, currentPath));
+            sb.AppendLine("  </div>");
+        }
+
+        sb.AppendLine("</div>");
     }
+
+    return sb.ToString();
+}
 
     /// <summary>
     /// 生成完整的分類樹狀結構 HTML
