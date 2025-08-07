@@ -37,7 +37,7 @@ public class BlogPost
             var hashCode = GetFileHashCode();
 
             // 組合最終檔案名稱：原檔案名稱-8碼hash.html
-            return $"{processedFileName}-{hashCode}.html";
+            return $"{processedFileName}.html";
         }
     }
 
