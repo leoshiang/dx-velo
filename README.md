@@ -10,8 +10,8 @@
 </div>
 
 ## 範例網站
-https://blog.leoshiang.tw
-https://photography.leoshiang.tw
+* https://blog.leoshiang.tw
+* https://photography.leoshiang.tw
 
 ## 特色功能
 
@@ -19,7 +19,7 @@ https://photography.leoshiang.tw
 - **Markdown 支援**：完整的 Markdown 語法支援，包含 Front Matter
 - **智慧解析**：自動解析文章標題、日期、分類和標籤
 - **多層分類**：支援階層式分類結構
-- **自動摘要**：智能生成文章摘要
+- **自動摘要**：自動生成文章摘要
 
 ### 現代化設計
 - **響應式佈局**：完美適配桌面、平板和手機
