@@ -339,6 +339,7 @@ tags: ["標籤1", "標籤2"]
 
 ### 專案結構
 
+```
 velo/
 ├── Models/             # 資料模型
 ├── Services/           # 業務邏輯服務
@@ -350,6 +351,7 @@ velo/
 ├── build-release.bat   # Windows 發布腳本
 ├── build-release.sh    # Unix 發布腳本
 └── README.md           # 專案說明
+```
 
 ### 建置設定
 - 目標框架：.NET 9.0
