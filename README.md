@@ -9,6 +9,10 @@
   </p>
 </div>
 
+## 範例網站
+https://blog.leoshiang.tw
+https://photography.leoshiang.tw
+
 ## 特色功能
 
 ### 內容管理
